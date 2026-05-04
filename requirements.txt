@@ -1,0 +1,21 @@
+# ============================================================
+# ChatArquivo — Dependências Python
+# ============================================================
+# Instalar com: pip install -r requirements.txt
+#
+# Versões testadas com Python 3.11+
+
+# Framework de interface web — cria a UI de chat em minutos
+streamlit>=1.35.0
+
+# Cliente oficial da API Google (Gemini LLM)
+google-generativeai
+
+# Parsing de HTML para extracção de texto das páginas arquivadas
+beautifulsoup4>=4.12.0
+
+# Parser HTML rápido (backend do BeautifulSoup)
+lxml>=5.2.0
+
+# Pedidos HTTP para a API do Arquivo.pt e download de páginas
+requests>=2.31.0
