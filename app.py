@@ -403,10 +403,10 @@ with st.sidebar:
         "Como era descrita a Internet em Portugal no final dos anos 1990?",
     ]
 
-    for exemplo in exemplos:
+    for i, exemplo in enumerate(exemplos):
         # [FIX] Ao clicar, guarda o exemplo no session_state E incrementa o contador
         # de input para forçar o Streamlit a re-renderizar o campo com o novo valor.
-        if st.button(f"📰 {exemplo[:52]}…", key=f"ex_{exemplo[:20]}"):
+        if st.button(f"📰 {exemplo[:52]}…", key=f"exemplo_{i}"):
             st.session_state.pergunta_actual = exemplo
             st.session_state.n_input += 1  # Força novo widget key → re-renderiza com valor certo
             st.rerun()
