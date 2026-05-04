@@ -331,8 +331,8 @@ A tua missão: ser uma janela para o passado digital português, democratizando 
 # Modelos Gemini por ordem de preferencia.
 # Mantem apenas modelos estaveis actuais para evitar 404 em modelos descontinuados.
 MODELOS_GEMINI_PREFERENCIA = [
-    "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
+    "gemini-2.5-flash",
     "gemini-2.5-pro",
 ]
 
