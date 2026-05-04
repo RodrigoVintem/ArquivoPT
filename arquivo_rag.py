@@ -150,7 +150,7 @@ def _termos_importantes(texto: str) -> list[str]:
         "a", "o", "os", "as", "um", "uma", "uns", "umas", "de", "do", "da",
         "dos", "das", "em", "no", "na", "nos", "nas", "por", "para", "com",
         "sem", "e", "ou", "que", "quem", "qual", "quais", "quando", "onde",
-        "como", "era", "foi", "foram", "estava", "estavam", "the", "and",
+        "como", "sobre", "dizia", "diziam", "era", "foi", "foram", "estava", "estavam", "the", "and",
         "or", "of", "in", "on", "to", "for", "was", "were", "who", "what",
         "which", "did", "how", "he", "she", "it", "they", "his", "her",
     }
@@ -243,6 +243,36 @@ def gerar_queries_pesquisa(pergunta: str, api_key: str) -> list[str]:
             unicas.append(query)
     print(f"[RAG] Queries de pesquisa: {unicas[:5]}")
     return unicas[:5]
+
+
+def gerar_queries_relacionadas(pergunta: str, api_key: str) -> list[str]:
+    """
+    Gera queries mais amplas para recuperar documentos relacionados quando a
+    pesquisa principal nao encontra nada.
+    """
+    pergunta_pt = _traduzir_pergunta_para_pesquisa_pt(pergunta, api_key)
+    termos = _termos_importantes(pergunta_pt)
+    anos = re.findall(r"\b(?:19|20)\d{2}\b", pergunta_pt)
+
+    queries = []
+    if len(termos) >= 4:
+        queries.append(" ".join(termos[:4]))
+    if len(termos) >= 3:
+        queries.append(" ".join(termos[:3] + anos[:1]))
+    if len(termos) >= 2:
+        queries.append(" ".join(termos[:2] + anos[:1]))
+    if anos and termos:
+        queries.append(" ".join([termos[0], anos[0]]))
+
+    unicas = []
+    vistas = set()
+    for query in queries:
+        query = _limpar_query_arquivo(query)
+        if query and query.lower() not in vistas:
+            vistas.add(query.lower())
+            unicas.append(query)
+    print(f"[RAG] Queries relacionadas: {unicas[:4]}")
+    return unicas[:4]
 
 
 def pesquisar_arquivo_multi(queries: str | list[str], from_year: str = None, to_year: str = None) -> list[dict]:
@@ -692,10 +722,20 @@ def responder_pergunta(
         "pt": {
             "sem_resultados": "📭 **Não foram encontrados documentos no Arquivo.pt para esta pesquisa.**\n\nExperimenta reformular a pergunta.",
             "sem_conteudo": "📄 **Encontrei páginas, mas não foi possível extrair o seu conteúdo.**\n\nO Arquivo.pt pode estar sobrecarregado.",
+            "contexto_relacionado": (
+                "Não encontrei documentos diretamente suficientes para responder com segurança à pergunta original. "
+                "Usei documentos relacionados recuperados pelo Arquivo.pt; trata a resposta como uma pista de investigação, "
+                "não como uma conclusão definitiva.\n\n"
+            ),
         },
         "en": {
             "sem_resultados": "📭 **No documents were found in Arquivo.pt for this search.**\n\nTry rephrasing your question.",
             "sem_conteudo": "📄 **Pages were found, but their content could not be extracted.**\n\nArquivo.pt might be overloaded.",
+            "contexto_relacionado": (
+                "I did not find enough directly relevant documents to answer the original question safely. "
+                "I used related Arquivo.pt documents instead; treat the answer as an investigation lead, "
+                "not a definitive conclusion.\n\n"
+            ),
         },
     }
     m = mensagens["en" if idioma_resposta == "en" else "pt"]
@@ -705,6 +745,13 @@ def responder_pergunta(
 
     # Passo 1B: Recuperar documentos históricos do Arquivo.pt
     resultados = pesquisar_arquivo_multi(queries_pesquisa, from_year, to_year)
+    contexto_aproximado = False
+
+    if not resultados:
+        queries_relacionadas = gerar_queries_relacionadas(pergunta, api_key)
+        if queries_relacionadas:
+            resultados = pesquisar_arquivo_multi(queries_relacionadas, from_year, to_year)
+            contexto_aproximado = bool(resultados)
 
     if not resultados:
         return m["sem_resultados"], []
@@ -719,6 +766,8 @@ def responder_pergunta(
 
     # Passo 4: Gerar resposta com o LLM (Gemini atua como Re-ranker e Gerador)
     resposta = gerar_resposta(pergunta, contexto, historico, idioma_resposta)
+    if contexto_aproximado:
+        resposta = m["contexto_relacionado"] + resposta
 
     return resposta, fontes
 
