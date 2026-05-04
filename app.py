@@ -342,21 +342,108 @@ defaults = {
     "pergunta_actual":   "",   # Texto actual no campo de input
     "aguardar_resposta": False,# Flag: está a processar uma pergunta?
     "n_input":           0,    # Contador para forçar re-render do campo (ao injectar exemplo)
+    "traduzir_ingles":   False,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
+
+idioma_ui = "en" if st.session_state.traduzir_ingles else "pt"
+
+TEXTOS = {
+    "pt": {
+        "subtitle": "A Maquina do Tempo com IA - Consulta a memoria da Internet portuguesa",
+        "sidebar_intro": "*Assistente de IA que usa documentos historicos do **Arquivo.pt** para responder as tuas perguntas sobre o passado da Internet portuguesa.*",
+        "translate_label": "Translate page and new results to English",
+        "years_title": "### Intervalo Temporal",
+        "years_caption": "Restringe a pesquisa a um periodo historico.",
+        "years_toggle": "Activar filtro por anos",
+        "from": "De",
+        "to": "Ate",
+        "examples_title": "### Perguntas de Exemplo",
+        "examples_caption": "Clica para preencher o campo de pesquisa.",
+        "clear": "Limpar conversa",
+        "user": "Utilizador",
+        "assistant": "ChatArquivo",
+        "copy": "Copiar",
+        "copied": "Copiado!",
+        "copy_error": "Erro",
+        "sources": "Fontes do Arquivo.pt",
+        "doc": "DOC",
+        "untitled": "Sem titulo",
+        "sidebar_footer": (
+            "**ChatArquivo** - Premio Arquivo.pt 2026.\n\n"
+            "Usa a API do [Arquivo.pt](https://arquivo.pt) e o Google Gemini "
+            "numa arquitectura RAG (*Retrieval-Augmented Generation*)."
+        ),
+        "welcome_title": "Consulta a memoria da Internet portuguesa",
+        "welcome_body": "Faz uma pergunta sobre qualquer acontecimento historico portugues.<br>O <strong>ChatArquivo</strong> pesquisa documentos reais do <strong>Arquivo.pt</strong> e usa IA para sintetizar uma resposta fundamentada com fontes verificaveis.",
+        "placeholder": "Ex: O que se dizia sobre a crise do euro em Portugal em 2011?",
+        "search": "Pesquisar",
+        "spinner": "A pesquisar no Arquivo.pt e a analisar documentos historicos...",
+        "empty_warning": "Por favor, escreve uma pergunta antes de pesquisar.",
+        "how_html": """
+        <h4>Como funciona</h4>
+        <p><strong>1. Pesquisa</strong><br>A tua pergunta e enviada a API do <em>Arquivo.pt</em>, que devolve paginas historicas relevantes.</p>
+        <p><strong>2. Extraccao</strong><br>O texto de cada pagina arquivada e extraido e limpo (HTML para texto legivel).</p>
+        <p><strong>3. Geracao</strong><br>O <strong>Google Gemini</strong> sintetiza uma resposta fundamentada, citando as fontes.</p>
+        <p><strong>4. Fontes</strong><br>Cada resposta inclui links verificaveis para os documentos originais no Arquivo.pt.</p>
+        <div class="nota">Arquitectura <strong>RAG</strong><br>(Retrieval-Augmented Generation)<br><br>O sistema nunca inventa factos; as respostas baseiam-se exclusivamente em documentos reais preservados pelo Arquivo.pt.</div>
+        """,
+    },
+    "en": {
+        "subtitle": "An AI Time Machine for exploring Portugal's web memory",
+        "sidebar_intro": "*AI assistant that uses historical **Arquivo.pt** documents to answer questions about Portugal's web past.*",
+        "translate_label": "Translate page and new results to English",
+        "years_title": "### Time Range",
+        "years_caption": "Restrict the search to a historical period.",
+        "years_toggle": "Enable year filter",
+        "from": "From",
+        "to": "To",
+        "examples_title": "### Example Questions",
+        "examples_caption": "Click to fill the search field.",
+        "clear": "Clear conversation",
+        "user": "User",
+        "assistant": "ChatArquivo",
+        "copy": "Copy",
+        "copied": "Copied!",
+        "copy_error": "Error",
+        "sources": "Arquivo.pt Sources",
+        "doc": "DOC",
+        "untitled": "Untitled",
+        "sidebar_footer": (
+            "**ChatArquivo** - Arquivo.pt Prize 2026.\n\n"
+            "Uses the [Arquivo.pt](https://arquivo.pt) API and Google Gemini "
+            "in a RAG (*Retrieval-Augmented Generation*) architecture."
+        ),
+        "welcome_title": "Search Portugal's web memory",
+        "welcome_body": "Ask a question about any Portuguese historical event.<br><strong>ChatArquivo</strong> searches real documents from <strong>Arquivo.pt</strong> and uses AI to synthesize a sourced answer.",
+        "placeholder": "Ex: What was being said about the euro crisis in Portugal in 2011?",
+        "search": "Search",
+        "spinner": "Searching Arquivo.pt and analyzing historical documents...",
+        "empty_warning": "Please write a question before searching.",
+        "how_html": """
+        <h4>How It Works</h4>
+        <p><strong>1. Search</strong><br>Your question is sent to the <em>Arquivo.pt</em> API, which returns relevant historical pages.</p>
+        <p><strong>2. Extraction</strong><br>The text from each archived page is extracted and cleaned (HTML to readable text).</p>
+        <p><strong>3. Generation</strong><br><strong>Google Gemini</strong> synthesizes a sourced answer from the retrieved documents.</p>
+        <p><strong>4. Sources</strong><br>Each answer includes verifiable links to the original documents in Arquivo.pt.</p>
+        <div class="nota"><strong>RAG</strong> architecture<br>(Retrieval-Augmented Generation)<br><br>The system does not invent facts; answers are based only on real documents preserved by Arquivo.pt.</div>
+        """,
+    },
+}
+t = TEXTOS[idioma_ui]
 
 
 # ---------------------------------------------------------------------------
 # Cabeçalho
 # ---------------------------------------------------------------------------
 
-st.markdown("""
+st.markdown(f"""
 <div class="cab">
-    <div class="deco">✦ Arquivo.pt × Inteligência Artificial ✦</div>
+    <div class="deco">Arquivo.pt x AI</div>
     <h1>ChatArquivo</h1>
-    <div class="sub">A Máquina do Tempo com IA — Consulta a memória da Internet portuguesa</div>
+    <div class="sub">{t["subtitle"]}</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -366,31 +453,29 @@ st.markdown("""
 # ---------------------------------------------------------------------------
 
 with st.sidebar:
-    st.markdown("## 🕰️ ChatArquivo")
-    st.markdown(
-        "*Assistente de IA que usa documentos históricos do **Arquivo.pt** "
-        "para responder às tuas perguntas sobre o passado da Internet portuguesa.*"
-    )
+    st.markdown("## ChatArquivo")
+    st.markdown(t["sidebar_intro"])
+    st.checkbox(t["translate_label"], key="traduzir_ingles")
     st.markdown("---")
 
     # ── Filtro temporal ──────────────────────────────────────────────────
-    st.markdown("### 📅 Intervalo Temporal")
-    st.caption("Restringe a pesquisa a um período histórico.")
-    usar_filtro = st.checkbox("Activar filtro por anos", value=False)
+    st.markdown(t["years_title"])
+    st.caption(t["years_caption"])
+    usar_filtro = st.checkbox(t["years_toggle"], value=False)
 
     from_year, to_year = None, None
     if usar_filtro:
         c1, c2 = st.columns(2)
         with c1:
-            from_year = str(st.number_input("De", min_value=1996, max_value=2025, value=2000, step=1))
+            from_year = str(st.number_input(t["from"], min_value=1996, max_value=2025, value=2000, step=1))
         with c2:
-            to_year   = str(st.number_input("Até", min_value=1996, max_value=2025, value=2010, step=1))
+            to_year   = str(st.number_input(t["to"], min_value=1996, max_value=2025, value=2010, step=1))
 
     st.markdown("---")
 
     # ── Perguntas de exemplo ─────────────────────────────────────────────
-    st.markdown("### 💡 Perguntas de Exemplo")
-    st.caption("Clica para preencher o campo de pesquisa.")
+    st.markdown(t["examples_title"])
+    st.caption(t["examples_caption"])
 
     exemplos = [
         "O que se dizia sobre a adoção do Euro em Portugal em 2002?",
@@ -402,6 +487,17 @@ with st.sidebar:
         "O que se dizia sobre o Mundial de Futebol de 2002 em Portugal?",
         "Como era descrita a Internet em Portugal no final dos anos 1990?",
     ]
+    if idioma_ui == "en":
+        exemplos = [
+            "What was being said about the adoption of the Euro in Portugal in 2002?",
+            "How did Portuguese media react to the Year 2000 bug (Y2K)?",
+            "Who was the President of Portugal in 2010?",
+            "How was Portugal's entry into the European Union in 1986 reported?",
+            "What did the press write about the 2008 financial crisis in Portugal?",
+            "What were the first Portuguese web pages like in the 1990s?",
+            "What was being said about the 2002 Football World Cup in Portugal?",
+            "How was the Internet in Portugal described in the late 1990s?",
+        ]
 
     for i, exemplo in enumerate(exemplos):
         # [FIX] Ao clicar, guarda o exemplo no session_state E incrementa o contador
@@ -413,18 +509,14 @@ with st.sidebar:
 
     st.markdown("---")
 
-    if st.button("🗑️ Limpar conversa", use_container_width=True):
+    if st.button(t["clear"], use_container_width=True):
         st.session_state.historico_display = []
         st.session_state.historico_llm    = []
         st.session_state.pergunta_actual  = ""
         st.rerun()
 
     st.markdown("---")
-    st.caption(
-        "**ChatArquivo** — Prémio Arquivo.pt 2026.\n\n"
-        "Usa a API do [Arquivo.pt](https://arquivo.pt) e o Google Gemini "
-        "numa arquitectura RAG (*Retrieval-Augmented Generation*)."
-    )
+    st.caption(t["sidebar_footer"])
 
 
 # ---------------------------------------------------------------------------
@@ -435,25 +527,8 @@ col_conv, col_info = st.columns([3, 1])
 
 # ── Painel "Como funciona" (coluna direita) ─────────────────────────────
 with col_info:
-    st.markdown("""
-    <div class="como-funciona">
-        <h4>⚙️ Como funciona</h4>
-        <p><strong>1. Pesquisa</strong><br>
-        A tua pergunta é enviada à API do <em>Arquivo.pt</em>, que devolve páginas históricas relevantes.</p>
-        <p><strong>2. Extracção</strong><br>
-        O texto de cada página arquivada é extraído e limpo (HTML → texto legível).</p>
-        <p><strong>3. Geração</strong><br>
-        O <strong>Google Gemini</strong> sintetiza uma resposta fundamentada, citando as fontes.</p>
-        <p><strong>4. Fontes</strong><br>
-        Cada resposta inclui links verificáveis para os documentos originais no Arquivo.pt.</p>
-        <div class="nota">
-            Arquitectura <strong>RAG</strong><br>
-            (Retrieval-Augmented Generation)<br><br>
-            O sistema nunca inventa factos — as respostas baseiam-se exclusivamente em documentos
-            reais preservados pelo Arquivo.pt.
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    painel_info_html = '<div class="como-funciona">' + t["how_html"] + '</div>'
+    st.html(painel_info_html)
 
 
 # ── Área de conversa (coluna esquerda) ──────────────────────────────────
@@ -465,48 +540,31 @@ with col_conv:
 
             # Pergunta do utilizador
             st.markdown(
-                f'<div class="msg-user"><span class="label">▶ Utilizador</span>{perg}</div>',
+                f'<div class="msg-user"><span class="label">{t["user"]}</span>{perg}</div>',
                 unsafe_allow_html=True
             )
 
             # Resposta do assistente
             st.markdown(
-                f'<div class="msg-assistente"><span class="label">📜 ChatArquivo</span>',
+                f'<div class="msg-assistente"><span class="label">{t["assistant"]}</span>',
                 unsafe_allow_html=True
             )
             # [FIX] Usa st.markdown nativo para renderizar Markdown da resposta (negrito, listas, etc.)
             st.markdown(resp)
             st.markdown("</div>", unsafe_allow_html=True)
 
-            # [FIX] Botão de copiar por resposta
-            # Usa um componente HTML com JavaScript para copiar para a área de transferência
-            resposta_js = resp.replace("`", "\\`").replace("\\n", "\\\\n").replace("\n", "\\n")
-            st.markdown(
-                f"""<div style="text-align:right; margin: -0.5rem 0 0.5rem;">
-                    <button onclick="navigator.clipboard.writeText(`{resposta_js}`).then(
-                        ()=>this.textContent='✓ Copiado!',
-                        ()=>this.textContent='Erro'
-                    ); setTimeout(()=>this.textContent='📋 Copiar',2000);"
-                    style="background:transparent; border:1px solid #C8B99A; border-radius:2px;
-                    color:#5C4A2A; font-size:0.72rem; padding:2px 10px; cursor:pointer;
-                    font-family:'JetBrains Mono',monospace;">
-                    📋 Copiar
-                    </button></div>""",
-                unsafe_allow_html=True
-            )
-
             # Fontes do Arquivo.pt
             if fontes:
-                fontes_html = '<div class="fontes"><div class="fontes-tit">📁 Fontes do Arquivo.pt</div>'
+                fontes_html = f'<div class="fontes"><div class="fontes-tit">{t["sources"]}</div>'
                 for f in fontes:
                     link  = f.get("link_arch", "#") or "#"
-                    tit   = f.get("titulo", "Sem título")[:80]
+                    tit   = f.get("titulo", t["untitled"])[:80]
                     data  = f.get("data", "")
                     num   = f.get("numero", "")
                     url_o = f.get("url_orig", "")[:70]
                     fontes_html += (
                         f'<div class="fonte-item">'
-                        f'<span class="num-doc">DOC&nbsp;{num}</span>'
+                        f'<span class="num-doc">{t["doc"]}&nbsp;{num}</span>'
                         f'<span class="fonte-data">{data}</span> — '
                         f'<a href="{link}" target="_blank" rel="noopener" '
                         f'style="color:var(--link);">{tit}</a><br>'
@@ -520,13 +578,11 @@ with col_conv:
 
     else:
         # Ecrã de boas-vindas
-        st.markdown("""
+        st.markdown(f"""
         <div class="boas-vindas">
             <div class="icone">🗞️</div>
-            <div class="titulo">Consulta a memória da Internet portuguesa</div>
-            <p>Faz uma pergunta sobre qualquer acontecimento histórico português.<br>
-            O <strong>ChatArquivo</strong> pesquisa documentos reais do <strong>Arquivo.pt</strong>
-            e usa IA para sintetizar uma resposta fundamentada com fontes verificáveis.</p>
+            <div class="titulo">{t["welcome_title"]}</div>
+            <p>{t["welcome_body"]}</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -542,13 +598,13 @@ with col_conv:
         pergunta_input = st.text_input(
             label            = "Pergunta",
             value            = st.session_state.pergunta_actual,
-            placeholder      = "Ex: O que se dizia sobre a crise do euro em Portugal em 2011?",
+            placeholder      = t["placeholder"],
             label_visibility = "collapsed",
             key              = f"input_pergunta_{st.session_state.n_input}",
         )
 
     with col_btn:
-        submeter = st.button("🔍 Pesquisar", use_container_width=True, type="primary")
+        submeter = st.button(t["search"], use_container_width=True, type="primary")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -567,12 +623,13 @@ if submeter and texto_final:
 
     # Spinner apenas na coluna de conversa — não afecta o painel info
     with col_conv:
-        with st.spinner("🔍 A pesquisar no Arquivo.pt e a analisar documentos históricos…"):
+        with st.spinner(t["spinner"]):
             resposta, fontes = responder_pergunta(
                 pergunta  = texto_final,
                 from_year = from_year if usar_filtro else None,
                 to_year   = to_year   if usar_filtro else None,
                 historico = st.session_state.historico_llm,
+                idioma_resposta = idioma_ui,
             )
 
     # Guarda no histórico de display
@@ -589,4 +646,4 @@ if submeter and texto_final:
     st.rerun()
 
 elif submeter:
-    st.warning("✏️ Por favor, escreve uma pergunta antes de pesquisar.")
+    st.warning(t["empty_warning"])

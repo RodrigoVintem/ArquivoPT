@@ -237,7 +237,7 @@ def extrair_texto_pagina(url_arquivo: str) -> str:
 # PASSO 3 — Construção do contexto documental
 # ---------------------------------------------------------------------------
 
-def construir_contexto(resultados: list[dict]) -> tuple[str, list[dict]]:
+def construir_contexto(resultados: list[dict], idioma_resposta: str = "pt") -> tuple[str, list[dict]]:
     """
     Para cada resultado do Arquivo.pt, extrai o texto da página arquivada
     e constrói um bloco de contexto estruturado que será enviado ao LLM.
@@ -262,13 +262,14 @@ def construir_contexto(resultados: list[dict]) -> tuple[str, list[dict]]:
     fontes = []
 
     for i, item in enumerate(resultados, start=1):
-        titulo    = item.get("title", "Sem título").strip()
+        titulo_padrao = "Untitled" if idioma_resposta == "en" else "Sem título"
+        titulo    = item.get("title", titulo_padrao).strip()
         url_orig  = item.get("originalURL", item.get("url", "")).strip()
         data_cap  = item.get("tstamp", "")
         link_arch = item.get("linkToArchive", "").strip()
         snippet   = item.get("snippet", "").strip()
 
-        data_legivel = formatar_data(data_cap)
+        data_legivel = formatar_data(data_cap, idioma_resposta)
 
         # Tenta extrair o texto completo; usa o snippet como fallback
         texto = ""
@@ -327,17 +328,21 @@ A tua missão: ser uma janela para o passado digital português, democratizando 
 à memória histórica preservada pelo Arquivo.pt."""
 
 
-# Modelos Gemini por ordem de preferência.
-# gemini-1.5-flash é o mais fiável e está disponível no tier gratuito.
-# gemini-2.0-flash e gemini-2.5-flash são tentados primeiro se disponíveis.
+# Modelos Gemini por ordem de preferencia.
+# Mantem apenas modelos estaveis actuais para evitar 404 em modelos descontinuados.
 MODELOS_GEMINI_PREFERENCIA = [
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-pro",
 ]
 
 
-def gerar_resposta(pergunta: str, contexto: str, historico: list[dict] = None) -> str:
+def gerar_resposta(
+    pergunta: str,
+    contexto: str,
+    historico: list[dict] = None,
+    idioma_resposta: str = "pt",
+) -> str:
     """
     Envia a pergunta + contexto documental ao Google Gemini e devolve a resposta.
 
@@ -359,14 +364,73 @@ def gerar_resposta(pergunta: str, contexto: str, historico: list[dict] = None) -
     Retorna:
         String com a resposta em Markdown
     """
+    mensagens = {
+        "pt": {
+            "api_key_missing": (
+                "⚠️ **Chave de API não configurada.**\n\n"
+                "Define a variável de ambiente antes de iniciar o Streamlit:\n\n"
+                "```bash\nexport GEMINI_API_KEY=\"AIzaSy...\"\nstreamlit run app.py\n```\n\n"
+                "Obtém a tua chave gratuita em: https://aistudio.google.com/"
+            ),
+            "auth_error": (
+                "⚠️ **Erro de autenticação com a API Gemini (403).**\n\n"
+                "Verifica se a tua `GEMINI_API_KEY` é válida.\n\n"
+                "Confirma em: https://aistudio.google.com/"
+            ),
+            "quota_error": (
+                "⏳ **Limite de pedidos da API atingido.**\n\n"
+                "Aguarda 60 segundos e tenta novamente.\n\n"
+                "Verifica o consumo em: https://aistudio.google.com/"
+            ),
+            "models_unavailable": (
+                "⚠️ **Não foi possível gerar uma resposta porque nenhum modelo Gemini configurado "
+                "está disponível para esta chave de API.**\n\n"
+                "Modelos testados: `{modelos}`\n\n"
+                "Abre o Google AI Studio e confirma que modelos Gemini estão disponíveis para a tua chave."
+            ),
+            "generic_error": (
+                "⚠️ **Não foi possível gerar uma resposta.**\n\n"
+                "Erro: `{erro}`\n\n"
+                "Verifica a ligação à internet e a validade da `GEMINI_API_KEY`."
+            ),
+            "empty_response": "A API Gemini não devolveu conteúdo utilizável.",
+        },
+        "en": {
+            "api_key_missing": (
+                "⚠️ **API key is not configured.**\n\n"
+                "Set the environment variable before starting Streamlit:\n\n"
+                "```bash\nexport GEMINI_API_KEY=\"AIzaSy...\"\nstreamlit run app.py\n```\n\n"
+                "Get a free key at: https://aistudio.google.com/"
+            ),
+            "auth_error": (
+                "⚠️ **Gemini API authentication error (403).**\n\n"
+                "Check that your `GEMINI_API_KEY` is valid.\n\n"
+                "Confirm it in: https://aistudio.google.com/"
+            ),
+            "quota_error": (
+                "⏳ **Gemini API request limit reached.**\n\n"
+                "Wait 60 seconds and try again.\n\n"
+                "Check usage at: https://aistudio.google.com/"
+            ),
+            "models_unavailable": (
+                "⚠️ **Could not generate an answer because no configured Gemini model is available "
+                "for this API key.**\n\n"
+                "Tried models: `{modelos}`\n\n"
+                "Open Google AI Studio and confirm which Gemini models are available for your key."
+            ),
+            "generic_error": (
+                "⚠️ **Could not generate an answer.**\n\n"
+                "Error: `{erro}`\n\n"
+                "Check your internet connection and that `GEMINI_API_KEY` is valid."
+            ),
+            "empty_response": "The Gemini API did not return usable content.",
+        },
+    }
+    msg = mensagens["en" if idioma_resposta == "en" else "pt"]
+
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
-        return (
-            "⚠️ **Chave de API não configurada.**\n\n"
-            "Define a variável de ambiente antes de iniciar o Streamlit:\n\n"
-            "```bash\nexport GEMINI_API_KEY=\"AIzaSy...\"\nstreamlit run app.py\n```\n\n"
-            "Obtém a tua chave gratuita em: https://aistudio.google.com/"
-        )
+        return msg["api_key_missing"]
 
     # Inicializa o cliente com o novo SDK
     cliente = genai.Client(api_key=api_key)
@@ -385,6 +449,14 @@ def gerar_resposta(pergunta: str, contexto: str, historico: list[dict] = None) -
                 parts=[genai_types.Part(text=conteudo)]
             ))
 
+    instrucao_idioma = (
+        "Answer in English. Keep source citations exactly as [DOCUMENTO N]. "
+        "Translate summaries and explanations, but preserve proper names, URLs, "
+        "dates, and source titles when needed."
+        if idioma_resposta == "en"
+        else "Responde em portugues europeu. Mantem as citacoes como [DOCUMENTO N]."
+    )
+
     # Prompt actual com o contexto fresco do Arquivo.pt
     prompt_actual = (
         f"Os seguintes documentos históricos foram recuperados do Arquivo.pt "
@@ -392,7 +464,8 @@ def gerar_resposta(pergunta: str, contexto: str, historico: list[dict] = None) -
         f"{'─'*50}\n"
         f"{contexto}\n"
         f"{'─'*50}\n\n"
-        f"Pergunta do utilizador: {pergunta}"
+        f"Pergunta do utilizador: {pergunta}\n\n"
+        f"Instrucao de idioma: {instrucao_idioma}"
     )
     conteudos.append(genai_types.Content(
         role="user",
@@ -407,6 +480,7 @@ def gerar_resposta(pergunta: str, contexto: str, historico: list[dict] = None) -
 
     # Tenta cada modelo por ordem até um funcionar
     ultimo_erro = ""
+    erros_modelo = []
     for nome_modelo in MODELOS_GEMINI_PREFERENCIA:
         try:
             resposta = cliente.models.generate_content(
@@ -418,6 +492,7 @@ def gerar_resposta(pergunta: str, contexto: str, historico: list[dict] = None) -
             # Verifica se a resposta tem conteúdo (pode ser bloqueada por safety filters)
             if not resposta.candidates:
                 print(f"[RAG] {nome_modelo}: sem candidatos (safety filter?)")
+                ultimo_erro = msg["empty_response"]
                 continue
 
             texto = resposta.text
@@ -426,10 +501,12 @@ def gerar_resposta(pergunta: str, contexto: str, historico: list[dict] = None) -
                 return texto.strip()
             else:
                 print(f"[RAG] {nome_modelo}: resposta vazia")
+                ultimo_erro = msg["empty_response"]
                 continue
 
         except Exception as e:
             ultimo_erro = str(e)
+            erros_modelo.append((nome_modelo, ultimo_erro))
 
             if "429" in ultimo_erro or "quota" in ultimo_erro.lower() or "rate" in ultimo_erro.lower():
                 print(f"[RAG] {nome_modelo}: quota excedida, a tentar próximo modelo...")
@@ -440,29 +517,23 @@ def gerar_resposta(pergunta: str, contexto: str, historico: list[dict] = None) -
                 continue
             elif "403" in ultimo_erro or "api_key" in ultimo_erro.lower() or "permission" in ultimo_erro.lower():
                 # Erro de autenticação — inútil tentar outros modelos
-                return (
-                    "⚠️ **Erro de autenticação com a API Gemini (403).**\n\n"
-                    "Verifica se a tua `GEMINI_API_KEY` é válida.\n\n"
-                    "Confirma em: https://aistudio.google.com/"
-                )
+                return msg["auth_error"]
             else:
                 print(f"[RAG] {nome_modelo}: erro inesperado — {ultimo_erro[:120]}")
                 continue
 
     # Todos os modelos falharam
     if "429" in ultimo_erro or "quota" in ultimo_erro.lower():
-        return (
-            "⏳ **Limite de pedidos da API atingido.**\n\n"
-            "O plano gratuito permite **15 pedidos/minuto** e **1 500/dia**. "
-            "Aguarda 60 segundos e tenta novamente.\n\n"
-            "Verifica o consumo em: https://aistudio.google.com/"
-        )
+        return msg["quota_error"]
 
-    return (
-        f"⚠️ **Não foi possível gerar uma resposta.**\n\n"
-        f"Erro: `{ultimo_erro[:200]}`\n\n"
-        f"Verifica a ligação à internet e a validade da `GEMINI_API_KEY`."
-    )
+    if erros_modelo and all(
+        "404" in erro or "not found" in erro.lower()
+        for _, erro in erros_modelo
+    ):
+        modelos = ", ".join(nome for nome, _ in erros_modelo)
+        return msg["models_unavailable"].format(modelos=modelos)
+
+    return msg["generic_error"].format(erro=(ultimo_erro or msg["empty_response"])[:200])
 
 
 # ---------------------------------------------------------------------------
@@ -474,6 +545,7 @@ def responder_pergunta(
     from_year: str        = None,
     to_year:   str        = None,
     historico: list[dict] = None,
+    idioma_resposta: str  = "pt",
 ) -> tuple[str, list[dict]]:
     """
     Função de entrada principal do motor RAG.
@@ -495,34 +567,58 @@ def responder_pergunta(
     if from_year:
         print(f"[RAG] Filtro temporal: {from_year} → {to_year}")
 
+    mensagens = {
+        "pt": {
+            "sem_resultados": (
+                "📭 **Não foram encontrados documentos no Arquivo.pt para esta pesquisa.**\n\n"
+                "Sugestões:\n"
+                "- Reformula a pergunta com termos mais simples ou mais específicos\n"
+                "- Experimenta sem filtro temporal, ou com um intervalo mais alargado\n"
+                "- Verifica a tua ligação à internet\n"
+                "- O Arquivo.pt pode estar temporariamente indisponível (tenta em https://arquivo.pt)"
+            ),
+            "sem_conteudo": (
+                "📄 **Foram encontrados documentos no Arquivo.pt mas não foi possível extrair o seu conteúdo.**\n\n"
+                "Isto pode acontecer quando as páginas arquivadas estão em formatos não suportados "
+                "(Flash, PDF, imagens) ou quando o Arquivo.pt está sobrecarregado.\n\n"
+                "Encontrei {num_resultados} resultado(s). Tenta novamente ou reformula a pergunta."
+            ),
+        },
+        "en": {
+            "sem_resultados": (
+                "📭 **No documents were found in Arquivo.pt for this search.**\n\n"
+                "Suggestions:\n"
+                "- Rephrase the question using simpler or more specific terms\n"
+                "- Try without the year filter, or use a wider time range\n"
+                "- Check your internet connection\n"
+                "- Arquivo.pt may be temporarily unavailable (try https://arquivo.pt)"
+            ),
+            "sem_conteudo": (
+                "📄 **Documents were found in Arquivo.pt, but their content could not be extracted.**\n\n"
+                "This can happen when archived pages use unsupported formats "
+                "(Flash, PDF, images), or when Arquivo.pt is overloaded.\n\n"
+                "I found {num_resultados} result(s). Try again or rephrase the question."
+            ),
+        },
+    }
+    m = mensagens["en" if idioma_resposta == "en" else "pt"]
+
     # Passo 1: Recuperar documentos históricos do Arquivo.pt
     resultados = pesquisar_arquivo(pergunta, from_year, to_year)
 
     if not resultados:
-        return (
-            "📭 **Não foram encontrados documentos no Arquivo.pt para esta pesquisa.**\n\n"
-            "Sugestões:\n"
-            "- Reformula a pergunta com termos mais simples ou mais específicos\n"
-            "- Experimenta sem filtro temporal, ou com um intervalo mais alargado\n"
-            "- Verifica a tua ligação à internet\n"
-            "- O Arquivo.pt pode estar temporariamente indisponível (tenta em https://arquivo.pt)"
-        ), []
+        return m["sem_resultados"], []
 
     # Passos 2 e 3: Extrair texto e construir contexto documental
-    contexto, fontes = construir_contexto(resultados)
+    contexto, fontes = construir_contexto(resultados, idioma_resposta)
 
     if not fontes:
-        return (
-            "📄 **Foram encontrados documentos no Arquivo.pt mas não foi possível extrair o seu conteúdo.**\n\n"
-            "Isto pode acontecer quando as páginas arquivadas estão em formatos não suportados "
-            "(Flash, PDF, imagens) ou quando o Arquivo.pt está sobrecarregado.\n\n"
-            f"Encontrei {len(resultados)} resultado(s). Tenta novamente ou reformula a pergunta."
-        ), []
+        return m["sem_conteudo"].format(num_resultados=len(resultados)), []
 
     print(f"[RAG] Contexto construído com {len(fontes)} documentos")
 
     # Passo 4: Gerar resposta com o LLM
-    resposta = gerar_resposta(pergunta, contexto, historico)
+    resposta = gerar_resposta(pergunta, contexto, historico, idioma_resposta)
 
     return resposta, fontes
 
@@ -531,16 +627,20 @@ def responder_pergunta(
 # Utilitários
 # ---------------------------------------------------------------------------
 
-def formatar_data(tstamp: str) -> str:
+def formatar_data(tstamp: str, idioma: str = "pt") -> str:
     """
     Converte o timestamp do Arquivo.pt (formato: YYYYMMDDHHmmss)
     para uma data legível em português (ex: "15 de outubro de 2002").
 
     Devolve o timestamp original se não conseguir converter.
     """
-    MESES = [
+    meses_pt = [
         "", "janeiro", "fevereiro", "março", "abril", "maio", "junho",
         "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"
+    ]
+    meses_en = [
+        "", "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
     ]
     try:
         if len(tstamp) < 8:
@@ -550,6 +650,8 @@ def formatar_data(tstamp: str) -> str:
         dia = tstamp[6:8].lstrip("0") or "1"
         if not (1 <= mes <= 12):
             return tstamp
-        return f"{dia} de {MESES[mes]} de {ano}"
+        if idioma == "en":
+            return f"{meses_en[mes]} {dia}, {ano}"
+        return f"{dia} de {meses_pt[mes]} de {ano}"
     except (IndexError, ValueError):
         return tstamp

@@ -9,7 +9,7 @@
 
 O **ChatArquivo** é um sistema de Inteligência Artificial que permite consultar, em linguagem natural, os documentos históricos preservados pelo **Arquivo.pt** desde os anos 1990.
 
-Em vez de pesquisar por palavras-chave e abrir dezenas de links antigos, o utilizador faz uma pergunta — e o sistema recupera automaticamente os documentos relevantes, extrai o conteúdo, e usa o **Google Gemini 1.5 Pro** para sintetizar uma resposta fundamentada, com citações verificáveis.
+Em vez de pesquisar por palavras-chave e abrir dezenas de links antigos, o utilizador faz uma pergunta — e o sistema recupera automaticamente os documentos relevantes, extrai o conteúdo, e usa a **API Google Gemini** para sintetizar uma resposta fundamentada, com citações verificáveis.
 
 ### Exemplos de perguntas:
 - *"O que se dizia sobre a adoção do Euro em Portugal em 2002?"*
@@ -137,7 +137,7 @@ O ChatArquivo demonstra concretamente o valor do Arquivo.pt, motivando a sua uti
   Documentação: https://github.com/arquivo/pwa-technologies/wiki/Arquivo.pt-API
   
 - **Google Gemini API**: `https://generativelanguage.googleapis.com`  
-        Modelo utilizado: `gemini-1.5-pro`
+        Modelos utilizados: `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.5-pro`
 
 ---
 
