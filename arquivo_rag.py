@@ -125,6 +125,176 @@ def pesquisar_arquivo(query_otimizada: str, from_year: str = None, to_year: str 
 # PASSO 2 — Extração e limpeza de texto HTML
 # ---------------------------------------------------------------------------
 
+def _parece_portugues(texto: str) -> bool:
+    texto_norm = texto.lower()
+    if re.search(r"[ãõçáéíóúâêôà]", texto_norm):
+        return True
+    palavras_pt = {
+        "como", "que", "quem", "quando", "onde", "porque", "porquê",
+        "portugal", "portugues", "portugueses", "portuguesa", "portuguesas",
+        "meios", "comunicacao", "comunicação", "noticia", "noticiada",
+        "reagiram", "sobre", "crise", "euro", "internet", "presidente",
+        "partido", "ano", "anos",
+    }
+    tokens = set(re.findall(r"[a-zA-ZÀ-ÿ]+", texto_norm))
+    return len(tokens & palavras_pt) >= 2
+
+
+def _limpar_query_arquivo(query: str) -> str:
+    query = re.sub(r"[?!.,;:]+$", "", query.strip())
+    return re.sub(r"\s+", " ", query).strip()
+
+
+def _termos_importantes(texto: str) -> list[str]:
+    stopwords = {
+        "a", "o", "os", "as", "um", "uma", "uns", "umas", "de", "do", "da",
+        "dos", "das", "em", "no", "na", "nos", "nas", "por", "para", "com",
+        "sem", "e", "ou", "que", "quem", "qual", "quais", "quando", "onde",
+        "como", "era", "foi", "foram", "estava", "estavam", "the", "and",
+        "or", "of", "in", "on", "to", "for", "was", "were", "who", "what",
+        "which", "did", "how", "he", "she", "it", "they", "his", "her",
+    }
+    termos = []
+    for token in re.findall(r"[A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9'-]*", texto):
+        termo = token.strip("'")
+        if len(termo) < 3 and not re.fullmatch(r"\d{4}", termo):
+            continue
+        if termo.lower() in stopwords:
+            continue
+        termos.append(termo)
+    return termos
+
+
+def _traduzir_pergunta_para_pesquisa_pt(pergunta: str, api_key: str) -> str:
+    pergunta = pergunta.strip()
+    if not pergunta or _parece_portugues(pergunta) or not api_key:
+        return pergunta
+    prompt = (
+        "Translate this search question into European Portuguese for searching Arquivo.pt. "
+        "Return only the translated search question.\n\n"
+        "Preserve quoted text, backticked text, URLs, hashtags, acronyms, proper names, "
+        "years, and exact foreign words/phrases explicitly being searched literally.\n\n"
+        f"Question: {pergunta}"
+    )
+    try:
+        cliente = genai.Client(api_key=api_key)
+        resp = cliente.models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(temperature=0.0, max_output_tokens=128),
+        )
+        traducao = (resp.text or "").strip().strip('"')
+        if traducao:
+            print(f"[RAG] Tradução para pesquisa PT: '{pergunta}' -> '{traducao}'")
+            return traducao
+    except Exception as e:
+        print(f"[RAG] Falha na tradução da query (fallback ativado): {e}")
+    return pergunta
+
+
+def gerar_queries_pesquisa(pergunta: str, api_key: str) -> list[str]:
+    pergunta_pt = _traduzir_pergunta_para_pesquisa_pt(pergunta, api_key)
+    queries = [_limpar_query_arquivo(pergunta_pt)]
+    termos = _termos_importantes(pergunta_pt)
+    if termos:
+        queries.append(" ".join(termos[:8]))
+    quoted = re.findall(r'"([^"]+)"|`([^`]+)`', pergunta)
+    quoted_terms = [a or b for a, b in quoted if (a or b)]
+    anos = re.findall(r"\b(?:19|20)\d{2}\b", pergunta_pt)
+    if quoted_terms:
+        queries.append(" ".join(f'"{q}"' for q in quoted_terms[:3]) + (" " + " ".join(anos) if anos else ""))
+    if api_key:
+        query_ia = otimizar_query_com_ia(pergunta_pt, api_key)
+        if query_ia:
+            queries.append(_limpar_query_arquivo(query_ia))
+        prompt = (
+            "Create 3 high-recall Arquivo.pt textsearch queries in European Portuguese for this question. "
+            "Return only one query per line.\n\n"
+            "Rules:\n"
+            "- Do not answer the question.\n"
+            "- Do not inject external facts; only rewrite the user's information need as search queries.\n"
+            "- Preserve years, acronyms, proper names, URLs, and quoted foreign terms.\n"
+            "- Prefer concise noun phrases and exact quoted phrases when useful.\n"
+            "- Avoid overly broad single-word queries.\n\n"
+            f"Original question: {pergunta}\n"
+            f"Portuguese search question: {pergunta_pt}"
+        )
+        try:
+            cliente = genai.Client(api_key=api_key)
+            resp = cliente.models.generate_content(
+                model="gemini-2.5-flash-lite",
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(temperature=0.0, max_output_tokens=192),
+            )
+            for linha in (resp.text or "").splitlines():
+                linha = re.sub(r"^\s*[-*\d.)]+\s*", "", linha).strip().strip('"')
+                if linha:
+                    queries.append(_limpar_query_arquivo(linha))
+        except Exception as e:
+            print(f"[RAG] Falha ao gerar queries extra (fallback ativado): {e}")
+    if pergunta_pt != pergunta:
+        queries.append(_limpar_query_arquivo(pergunta))
+    unicas = []
+    vistas = set()
+    for query in queries:
+        query = _limpar_query_arquivo(query)
+        if query and query.lower() not in vistas:
+            vistas.add(query.lower())
+            unicas.append(query)
+    print(f"[RAG] Queries de pesquisa: {unicas[:5]}")
+    return unicas[:5]
+
+
+def pesquisar_arquivo_multi(queries: str | list[str], from_year: str = None, to_year: str = None) -> list[dict]:
+    if isinstance(queries, str):
+        queries = [queries]
+    def params_para_query(query: str, incluir_datas: bool = True) -> dict:
+        params = {
+            "q":           query,
+            "maxItems":    max(4, NUM_RESULTADOS // max(1, min(len(queries), 3))),
+            "prettyPrint": "false",
+        }
+        if incluir_datas and from_year:
+            params["from"] = f"{from_year}0101000000"
+        if incluir_datas and to_year:
+            params["to"] = f"{to_year}1231235959"
+        return params
+    def chave_resultado(item: dict) -> str:
+        return item.get("linkToArchive") or item.get("originalURL") or item.get("url") or item.get("title", "")
+    def executar(incluir_datas: bool) -> list[dict]:
+        resultados = []
+        vistos = set()
+        headers = {"User-Agent": "ChatArquivo/3.0 (Premio Arquivo.pt 2026)"}
+        for query in queries:
+            resposta = requests.get(
+                ARQUIVO_TEXTSEARCH_URL,
+                params=params_para_query(query, incluir_datas),
+                timeout=HTTP_TIMEOUT,
+                headers=headers,
+            )
+            resposta.raise_for_status()
+            for item in resposta.json().get("response_items", []):
+                chave = chave_resultado(item)
+                if chave and chave not in vistos:
+                    vistos.add(chave)
+                    resultados.append(item)
+                if len(resultados) >= NUM_RESULTADOS:
+                    break
+            if len(resultados) >= NUM_RESULTADOS:
+                break
+        return resultados
+    try:
+        resultados = executar(incluir_datas=True)
+        if not resultados and (from_year or to_year):
+            print("[RAG] Sem resultados com data. A tentar sem filtro temporal...")
+            resultados = executar(incluir_datas=False)
+        print(f"[RAG] 🔎 {len(resultados)} resultados encontrados no Arquivo.pt")
+        return resultados[:NUM_RESULTADOS]
+    except Exception as e:
+        print(f"[RAG] ❌ Erro ao contactar Arquivo.pt: {e}")
+        return []
+
+
 def extrair_texto_pagina(url_arquivo: str) -> str:
     """
     Faz download de uma página arquivada e extrai o texto legível,
@@ -528,11 +698,11 @@ def responder_pergunta(
     }
     m = mensagens["en" if idioma_resposta == "en" else "pt"]
 
-    # Passo 1A: Gemini Flash-Lite otimiza a pergunta
-    query_otimizada = otimizar_query_com_ia(pergunta, api_key)
+    # Passo 1A: gerar variantes genericas de pesquisa para o indice do Arquivo.pt
+    queries_pesquisa = gerar_queries_pesquisa(pergunta, api_key)
 
     # Passo 1B: Recuperar documentos históricos do Arquivo.pt
-    resultados = pesquisar_arquivo(query_otimizada, from_year, to_year)
+    resultados = pesquisar_arquivo_multi(queries_pesquisa, from_year, to_year)
 
     if not resultados:
         return m["sem_resultados"], []
