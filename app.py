@@ -28,6 +28,7 @@ Prémio Arquivo.pt 2026
 
 import streamlit as st
 from arquivo_rag import responder_pergunta
+import re
 
 # ---------------------------------------------------------------------------
 # Configuração da página
@@ -435,6 +436,23 @@ TEXTOS = {
 t = TEXTOS[idioma_ui]
 
 
+def linkar_citacoes_documentos(texto: str, fontes: list[dict]) -> str:
+    links_por_numero = {
+        str(f.get("numero")): (f.get("link_arch") or "#")
+        for f in fontes
+        if f.get("numero")
+    }
+
+    def substituir(match: re.Match) -> str:
+        numero = match.group(1)
+        link = links_por_numero.get(numero)
+        if not link:
+            return match.group(0)
+        return f'[[DOCUMENTO {numero}]]({link})'
+
+    return re.sub(r"\[DOCUMENTO\s+(\d+)\]", substituir, texto)
+
+
 # ---------------------------------------------------------------------------
 # Cabeçalho
 # ---------------------------------------------------------------------------
@@ -550,7 +568,7 @@ with col_conv:
                 unsafe_allow_html=True
             )
             # [FIX] Usa st.markdown nativo para renderizar Markdown da resposta (negrito, listas, etc.)
-            st.markdown(resp)
+            st.markdown(linkar_citacoes_documentos(resp, fontes))
             st.markdown("</div>", unsafe_allow_html=True)
 
             # Fontes do Arquivo.pt

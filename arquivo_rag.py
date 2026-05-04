@@ -452,9 +452,9 @@ REGRAS ABSOLUTAS — nunca as violes:
 3. Se os documentos fornecidos não contiverem informação suficiente, diz isso claramente \
    e descreve o que foi encontrado. Não especules nem inventes.
 4. Escreve em português europeu (Portugal), de forma clara, rigorosa e acessível.
-5. Estrutura a resposta com: (a) resumo em 2-3 frases; (b) desenvolvimento com citações; \
-   (c) lista das fontes usadas no final.
-6. Usa formatação Markdown (negrito, listas) para melhorar a legibilidade.
+5. Estrutura a resposta com: (a) resumo em 2-3 frases; (b) desenvolvimento com citações inline.
+6. NÃO cries uma secção final de fontes, bibliografia, "Fontes:" ou "Sources:"; a interface já mostra as fontes separadamente.
+7. Usa formatação Markdown (negrito, listas) para melhorar a legibilidade.
 
 A tua missão: ser uma janela para o passado digital português, democratizando o acesso \
 à memória histórica preservada pelo Arquivo.pt."""
@@ -597,7 +597,9 @@ def gerar_resposta(
         f"{contexto}\n"
         f"{'─'*50}\n\n"
         f"Pergunta do utilizador: {pergunta}\n\n"
-        f"Instrucao de idioma: {instrucao_idioma}"
+        f"Instrucao de idioma: {instrucao_idioma}\n"
+        f"Instrucao de formato: usa citacoes inline como [DOCUMENTO N], mas nao incluas "
+        f"uma lista final de fontes, bibliografia, 'Fontes:' ou 'Sources:'."
     )
     conteudos.append(genai_types.Content(
         role="user",
