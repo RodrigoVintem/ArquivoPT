@@ -34,83 +34,56 @@ from google.genai import types as genai_types
 
 ARQUIVO_TEXTSEARCH_URL = "https://arquivo.pt/textsearch"
 
-# Número de resultados a recuperar. 8 garante contexto rico sem exceder limites.
-NUM_RESULTADOS = 8
+# Número de resultados a recuperar. 10 com query otimizada garante contexto rico e precisão.
+NUM_RESULTADOS = 10
 
 # Comprimento máximo de texto extraído por página (em caracteres).
 # 2000 chars ≈ 500 tokens — bom equilíbrio entre contexto e custo de API.
 MAX_CHARS_POR_PAGINA = 2000
 
 # Timeout para pedidos HTTP ao Arquivo.pt (segundos)
-HTTP_TIMEOUT = 12
+HTTP_TIMEOUT = 20
 
 
 # ---------------------------------------------------------------------------
-# PASSO 1 — Pesquisa no Arquivo.pt
+# PASSO 1 — Expansão de Query com IA e Pesquisa no Arquivo.pt
 # ---------------------------------------------------------------------------
 
-def _construir_query_arquivo(pergunta: str) -> str:
+def otimizar_query_com_ia(pergunta: str, api_key: str) -> str:
     """
-    Constrói a query mais eficaz para a API do Arquivo.pt a partir de uma
-    pergunta em linguagem natural.
-
-    ESTRATÉGIA CORRETA:
-    A API textsearch do Arquivo.pt aceita linguagem natural e operadores booleanos.
-    NÃO se deve reduzir a pergunta a keywords simples — isso perde contexto semântico
-    e retorna resultados irrelevantes (ex: "presidente Portugal" devolve qualquer
-    página com essas palavras, não necessariamente sobre o presidente).
-
-    Em vez disso:
-    - Remove apenas artigos soltos e pontuação desnecessária
-    - Preserva nomes próprios, datas e termos técnicos
-    - Usa aspas para expressões-chave quando a pergunta é específica
-
-    Parâmetros:
-        pergunta — Pergunta em linguagem natural
-
-    Retorna:
-        String de query optimizada para o Arquivo.pt
+    Técnica HyDE: Usa um modelo LLM ultrarrápido (Flash-Lite) para 
+    adicionar contexto semântico à query antes de ir ao motor léxico do Arquivo.pt.
     """
-    # Remove pontuação de fim de frase mas preserva hífen e apóstrofe
-    q = re.sub(r"[?!.,;:]+$", "", pergunta.strip())
+    if not api_key:
+        return pergunta
 
-    # Remove prefixos interrogativos comuns que não acrescentam valor à pesquisa
-    # mas preserva os termos substantivos que se seguem
-    prefixos = [
-        r"^(diz[- ]me|explica[- ]me|quero saber|podes dizer)\s+",
-        r"^(what|who|when|where|how)\s+",
-    ]
-    for p in prefixos:
-        q = re.sub(p, "", q, flags=re.IGNORECASE)
+    cliente = genai.Client(api_key=api_key)
+    prompt = (
+        f"O utilizador quer saber: '{pergunta}'.\n"
+        f"Gera apenas UMA query de pesquisa (máximo 6 palavras) para um motor de busca antigo.\n"
+        f"Adiciona o contexto português implícito (ex: se perguntar por 'presidente', "
+        f"adiciona 'república portugal'). Se não houver ano na pergunta, foca-te nos termos essenciais.\n"
+        f"Não uses pontuação, não dês explicações. Responde APENAS com as palavras-chave."
+    )
+    
+    try:
+        resp = cliente.models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents=prompt
+        )
+        query_otimizada = resp.text.strip().replace('"', '').replace('\n', ' ')
+        print(f"[RAG] 🧠 Expansão de Query: '{pergunta}' -> '{query_otimizada}'")
+        return query_otimizada
+    except Exception as e:
+        print(f"[RAG] ⚠️ Falha na expansão com IA (fallback ativado): {e}")
+        # Fallback de segurança: limpa a string básica
+        q = re.sub(r"[?!.,;:]+$", "", pergunta.strip())
+        return re.sub(r"\s+", " ", q).strip()
 
-    # Normaliza espaços múltiplos
-    q = re.sub(r"\s+", " ", q).strip()
-
-    print(f"[RAG] Query para Arquivo.pt: '{q}'")
-    return q
-
-
-def pesquisar_arquivo(pergunta: str, from_year: str = None, to_year: str = None) -> list[dict]:
-    """
-    Consulta a API de pesquisa de texto do Arquivo.pt e devolve uma lista
-    de resultados com metadados (URL original, data de captura, snippet, etc.).
-
-    A API suporta linguagem natural — não é necessário reduzir a keywords.
-    Faz uma segunda tentativa sem filtro temporal se a primeira vier vazia,
-    garantindo sempre resultados mesmo com datas mal configuradas.
-
-    Parâmetros:
-        pergunta   — Pergunta em linguagem natural
-        from_year  — Ano de início do intervalo temporal (ex: "2008"), opcional
-        to_year    — Ano de fim do intervalo temporal (ex: "2012"), opcional
-
-    Retorna:
-        Lista de dicionários com campos: title, originalURL, tstamp, linkToArchive, snippet
-    """
-    query = _construir_query_arquivo(pergunta)
-
+def pesquisar_arquivo(query_otimizada: str, from_year: str = None, to_year: str = None) -> list[dict]:
+    """Consulta a API de pesquisa do Arquivo.pt com a query já tratada pela IA."""
     params = {
-        "q":           query,
+        "q":           query_otimizada,
         "maxItems":    NUM_RESULTADOS,
         "prettyPrint": "false",
     }
@@ -125,37 +98,26 @@ def pesquisar_arquivo(pergunta: str, from_year: str = None, to_year: str = None)
             ARQUIVO_TEXTSEARCH_URL,
             params=params,
             timeout=HTTP_TIMEOUT,
-            headers={"User-Agent": "ChatArquivo/2.0 (Premio Arquivo.pt 2026)"}
+            headers={"User-Agent": "ChatArquivo/3.0 (Premio Arquivo.pt 2026)"}
         )
         resposta.raise_for_status()
         dados = resposta.json()
         resultados = dados.get("response_items", [])
 
-        # Se não há resultados com filtro temporal, tenta sem filtro
-        # Isto evita o erro "não encontrado" quando o utilizador usa datas muito restritas
         if not resultados and (from_year or to_year):
-            print("[RAG] Sem resultados com filtro temporal — a tentar sem filtro...")
-            params_sem_filtro = {"q": query, "maxItems": NUM_RESULTADOS, "prettyPrint": "false"}
+            print("[RAG] Sem resultados com data. A tentar sem filtro temporal...")
+            params_sem_filtro = {"q": query_otimizada, "maxItems": NUM_RESULTADOS, "prettyPrint": "false"}
             resp2 = requests.get(
-                ARQUIVO_TEXTSEARCH_URL,
-                params=params_sem_filtro,
-                timeout=HTTP_TIMEOUT,
-                headers={"User-Agent": "ChatArquivo/2.0 (Premio Arquivo.pt 2026)"}
+                ARQUIVO_TEXTSEARCH_URL, params=params_sem_filtro, timeout=HTTP_TIMEOUT
             )
             resp2.raise_for_status()
             resultados = resp2.json().get("response_items", [])
 
-        print(f"[RAG] {len(resultados)} resultados encontrados no Arquivo.pt")
+        print(f"[RAG] 🔎 {len(resultados)} resultados encontrados no Arquivo.pt")
         return resultados
 
-    except requests.Timeout:
-        print("[RAG] Timeout na API do Arquivo.pt")
-        return []
-    except requests.HTTPError as e:
-        print(f"[RAG] Erro HTTP do Arquivo.pt: {e.response.status_code}")
-        return []
-    except (requests.RequestException, ValueError) as e:
-        print(f"[RAG] Erro ao contactar Arquivo.pt: {e}")
+    except Exception as e:
+        print(f"[RAG] ❌ Erro ao contactar Arquivo.pt: {e}")
         return []
 
 
@@ -547,64 +509,30 @@ def responder_pergunta(
     historico: list[dict] = None,
     idioma_resposta: str  = "pt",
 ) -> tuple[str, list[dict]]:
-    """
-    Função de entrada principal do motor RAG.
-    Orquestra os 4 passos: Pesquisa → Extracção → Contexto → Geração.
-
-    Parâmetros:
-        pergunta  — Pergunta em linguagem natural
-        from_year — Filtro temporal de início (opcional)
-        to_year   — Filtro temporal de fim (opcional)
-        historico — Histórico de conversa (opcional, para perguntas de seguimento)
-
-    Retorna:
-        (resposta_str, fontes_lista)
-        resposta_str — Texto em Markdown com a resposta e citações
-        fontes_lista — Lista de dicts com metadados das fontes (para a UI)
-    """
+    
     print(f"\n{'='*60}")
     print(f"[RAG] Nova pergunta: '{pergunta}'")
-    if from_year:
-        print(f"[RAG] Filtro temporal: {from_year} → {to_year}")
+    
+    # Vamos buscar a API Key aqui para a podermos passar à nossa nova Camada 1
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
 
     mensagens = {
         "pt": {
-            "sem_resultados": (
-                "📭 **Não foram encontrados documentos no Arquivo.pt para esta pesquisa.**\n\n"
-                "Sugestões:\n"
-                "- Reformula a pergunta com termos mais simples ou mais específicos\n"
-                "- Experimenta sem filtro temporal, ou com um intervalo mais alargado\n"
-                "- Verifica a tua ligação à internet\n"
-                "- O Arquivo.pt pode estar temporariamente indisponível (tenta em https://arquivo.pt)"
-            ),
-            "sem_conteudo": (
-                "📄 **Foram encontrados documentos no Arquivo.pt mas não foi possível extrair o seu conteúdo.**\n\n"
-                "Isto pode acontecer quando as páginas arquivadas estão em formatos não suportados "
-                "(Flash, PDF, imagens) ou quando o Arquivo.pt está sobrecarregado.\n\n"
-                "Encontrei {num_resultados} resultado(s). Tenta novamente ou reformula a pergunta."
-            ),
+            "sem_resultados": "📭 **Não foram encontrados documentos no Arquivo.pt para esta pesquisa.**\n\nExperimenta reformular a pergunta.",
+            "sem_conteudo": "📄 **Encontrei páginas, mas não foi possível extrair o seu conteúdo.**\n\nO Arquivo.pt pode estar sobrecarregado.",
         },
         "en": {
-            "sem_resultados": (
-                "📭 **No documents were found in Arquivo.pt for this search.**\n\n"
-                "Suggestions:\n"
-                "- Rephrase the question using simpler or more specific terms\n"
-                "- Try without the year filter, or use a wider time range\n"
-                "- Check your internet connection\n"
-                "- Arquivo.pt may be temporarily unavailable (try https://arquivo.pt)"
-            ),
-            "sem_conteudo": (
-                "📄 **Documents were found in Arquivo.pt, but their content could not be extracted.**\n\n"
-                "This can happen when archived pages use unsupported formats "
-                "(Flash, PDF, images), or when Arquivo.pt is overloaded.\n\n"
-                "I found {num_resultados} result(s). Try again or rephrase the question."
-            ),
+            "sem_resultados": "📭 **No documents were found in Arquivo.pt for this search.**\n\nTry rephrasing your question.",
+            "sem_conteudo": "📄 **Pages were found, but their content could not be extracted.**\n\nArquivo.pt might be overloaded.",
         },
     }
     m = mensagens["en" if idioma_resposta == "en" else "pt"]
 
-    # Passo 1: Recuperar documentos históricos do Arquivo.pt
-    resultados = pesquisar_arquivo(pergunta, from_year, to_year)
+    # Passo 1A: Gemini Flash-Lite otimiza a pergunta
+    query_otimizada = otimizar_query_com_ia(pergunta, api_key)
+
+    # Passo 1B: Recuperar documentos históricos do Arquivo.pt
+    resultados = pesquisar_arquivo(query_otimizada, from_year, to_year)
 
     if not resultados:
         return m["sem_resultados"], []
@@ -613,11 +541,11 @@ def responder_pergunta(
     contexto, fontes = construir_contexto(resultados, idioma_resposta)
 
     if not fontes:
-        return m["sem_conteudo"].format(num_resultados=len(resultados)), []
+        return m["sem_conteudo"], []
 
-    print(f"[RAG] Contexto construído com {len(fontes)} documentos")
+    print(f"[RAG] 📚 Contexto construído com {len(fontes)} documentos")
 
-    # Passo 4: Gerar resposta com o LLM
+    # Passo 4: Gerar resposta com o LLM (Gemini atua como Re-ranker e Gerador)
     resposta = gerar_resposta(pergunta, contexto, historico, idioma_resposta)
 
     return resposta, fontes
