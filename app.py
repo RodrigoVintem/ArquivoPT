@@ -64,9 +64,9 @@ html, body, [class*="css"] {
 
 /* ── Cabeçalho ─── */
 .header {
-    padding: 2rem 0 1.5rem;
+    padding: 0.2rem 0 0.9rem;
     border-bottom: 1px solid var(--borda);
-    margin-bottom: 2rem;
+    margin-bottom: 1rem;
     position: relative;
 }
 .header-grid {
@@ -181,10 +181,12 @@ button[data-testid="baseButton-primary"] {
     border: none !important;
     border-radius: 6px !important;
     font-family: var(--mono) !important;
-    font-size: 0.85rem !important;
+    font-size: 0.65rem !important;
     font-weight: 700 !important;
-    letter-spacing: 1px !important;
-    padding: 0.65rem 1rem !important;
+    letter-spacing: 0.5px !important;
+    padding: 0.65rem 0.55rem !important;
+    text-align: center !important;
+    white-space: nowrap !important;
     box-shadow: 0 0 16px rgba(255,45,85,0.35) !important;
     transition: all 0.15s !important;
 }
@@ -325,10 +327,10 @@ hr { border: none !important; border-top: 1px solid var(--borda) !important; mar
 .welcome {
     border: 1px solid var(--borda);
     border-radius: 8px;
-    padding: 3rem 2rem;
+    padding: 0.5rem 1.7rem;
     text-align: center;
     background: var(--bg2);
-    margin: 1rem 0;
+    margin: 0.4rem 0 0.75rem;
     position: relative;
     overflow: hidden;
 }
@@ -340,16 +342,16 @@ hr { border: none !important; border-top: 1px solid var(--borda) !important; mar
     background: radial-gradient(circle at 50% 50%, rgba(255,45,85,0.04) 0%, transparent 60%);
     pointer-events: none;
 }
-.welcome-icon { font-size: 3rem; margin-bottom: 1.2rem; }
+.welcome-icon { font-size: 1.5rem; margin-bottom: 0.1rem; }
 .welcome h2 {
     font-family: var(--mono) !important;
-    font-size: 1.3rem !important;
+    font-size: 1.05rem !important;
     font-weight: 700 !important;
     color: var(--texto) !important;
-    margin-bottom: 0.8rem !important;
+    margin-bottom: 0.55rem !important;
     letter-spacing: 1px;
 }
-.welcome p { color: var(--subtexto); font-size: 0.92rem; line-height: 1.7; max-width: 480px; margin: 0 auto; }
+.welcome p { color: var(--subtexto); font-size: 0.84rem; line-height: 1.55; max-width: 460px; margin: 0 auto; }
 
 /* ── Painel lateral de instruções ─── */
 .painel-info {
@@ -759,7 +761,7 @@ with col_main:
             key              = f"input_{st.session_state.n_input}",
         )
     with col_btn:
-        analisar = st.button("⚡ ANALISAR", use_container_width=True, type="primary")
+        analisar = st.button("ANALISAR", use_container_width=True, type="primary")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
