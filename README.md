@@ -1,151 +1,128 @@
-# 🕰️ ChatArquivo — A Máquina do Tempo com IA
+🔍 DECEPTIO — Detetor de Desinformação Histórica
 
-> **Prémio Arquivo.pt 2026** — Candidatura ao 1.º prémio  
-> Assistente de Inteligência Artificial que usa o [Arquivo.pt](https://arquivo.pt) como base de conhecimento histórico
+Prémio Arquivo.pt 2026 — Candidatura ao 1.º Prémio + Menções Honrosas (Público · DNS.PT)
+Sistema de Inteligência Artificial para auditoria de afirmações históricas com base em fontes arquivadas da Web portuguesa
 
----
+O que é o DECEPTIO?
 
-## O que é o ChatArquivo?
+O DECEPTIO (latim: engano, ilusão) é um sistema de IA que analisa afirmações históricas — como mitos, teorias ou narrativas virais — e determina a sua veracidade com base em documentos reais preservados pelo Arquivo.pt.
 
-O **ChatArquivo** é um sistema de Inteligência Artificial que permite consultar, em linguagem natural, os documentos históricos preservados pelo **Arquivo.pt** desde os anos 1990.
+Em vez de confiar em memória, opiniões ou fontes isoladas, o sistema:
 
-Em vez de pesquisar por palavras-chave e abrir dezenas de links antigos, o utilizador faz uma pergunta — e o sistema recupera automaticamente os documentos relevantes, extrai o conteúdo, e usa a **API Google Gemini** para sintetizar uma resposta fundamentada, com citações verificáveis.
-
-### Exemplos de perguntas:
-- *"O que se dizia sobre a adoção do Euro em Portugal em 2002?"*
-- *"Como reagiram os jornais portugueses ao Bug do Ano 2000?"*
-- *"Qual era a situação económica de Portugal durante a crise de 2008?"*
-
----
-
-## Arquitectura Técnica: RAG (Retrieval-Augmented Generation)
-
-```
-Pergunta do utilizador
+Pesquisa automaticamente a Web histórica portuguesa
+Seleciona as fontes mais relevantes
+Cruza essa evidência com conhecimento global
+Produz um veredito fundamentado e explicável
+Exemplos de utilização
+“O Bug do Ano 2000 causou falhas graves em Portugal?”
+“Portugal faliu durante a crise de 2008?”
+“Houve pânico real com a entrada no Euro?”
+“A gripe A foi exagerada pelos media portugueses?”
+Arquitectura Técnica: RAG com Auditoria de Factos
+Afirmação do utilizador
         │
         ▼
-┌─────────────────────┐
-│   API Arquivo.pt    │  ← Pesquisa de texto histórico
-│  (textsearch API)   │     (milhões de páginas desde 1996)
-└─────────────────────┘
-        │
-        ▼ Resultados (URLs + snippets)
-┌─────────────────────┐
-│  Extracção HTML     │  ← BeautifulSoup
-│  (texto limpo)      │     (remove scripts, nav, ads)
-└─────────────────────┘
-        │
-        ▼ Contexto documental datado
-┌─────────────────────┐
-│   LLM Gemini Pro    │  ← Google API
-│   (síntese com IA)  │     (system prompt rigoroso)
-└─────────────────────┘
+┌────────────────────────────┐
+│ C1: Query Expansion        │  ← Gemini Flash Lite
+│ Gera múltiplas pesquisas   │     (variações semânticas)
+└────────────────────────────┘
         │
         ▼
-Resposta em linguagem natural
-com fontes citadas e verificáveis
-```
+┌────────────────────────────┐
+│ C2: Retrieval Multi-Query  │  ← Arquivo.pt API
+│ Até 45 documentos históricos│    (prioridade .pt)
+└────────────────────────────┘
+        │
+        ▼
+┌────────────────────────────┐
+│ C3: Re-ranking             │  ← Gemini Flash Lite
+│ Seleciona os 5 mais relevantes
+└────────────────────────────┘
+        │
+        ▼
+┌────────────────────────────┐
+│ C4: Auditoria de Factos    │  ← Gemini Flash
+│ Análise crítica + veredito │
+└────────────────────────────┘
+        │
+        ▼
+Resposta estruturada com evidência
+e fontes verificáveis
+Sistema de Vereditos
 
-**Garantia de rigor:** O sistema nunca inventa factos. O LLM é instruído a basear-se exclusivamente nos documentos recuperados do Arquivo.pt. Se não houver informação suficiente, diz-o claramente.
+O DECEPTIO não responde apenas — julga a veracidade da afirmação:
 
----
+Veredito	Significado
+🔴 MITO HISTÓRICO	Afirmação falsa com evidência documental
+🟢 FACTO CONFIRMADO	Verdade comprovada por múltiplas fontes
+🟡 VERDADE PARCIAL	Contém elementos verdadeiros, mas distorcidos
+🔵 PÂNICO INJUSTIFICADO	Narrativa da época exagerou os factos
+🟣 INCONCLUSIVO	Evidência insuficiente ou contraditória
+Garantia de Rigor
+O sistema privilegia fontes primárias arquivadas
+Todas as respostas incluem referências verificáveis
+O modelo é instruído a:
+Não inventar factos
+Distinguir evidência de interpretação
+Assumir incerteza quando necessário
+Impacto Social e Científico
+Combate à desinformação
 
-## Instalação e Execução
+Permite verificar rapidamente narrativas históricas recorrentes na Internet, reduzindo a propagação de mitos.
 
-### 1. Pré-requisitos
-- Python 3.11 ou superior
-- Conta no [Google AI Studio](https://aistudio.google.com/) (API key gratuita)
+Jornalismo e investigação
 
-### 2. Instalar dependências
+Facilita a análise da cobertura mediática ao longo do tempo, com acesso imediato a fontes primárias.
 
-```bash
+Educação
+
+Transforma a história recente num sistema explorável e questionável, incentivando pensamento crítico.
+
+Valorização do Arquivo.pt
+
+Demonstra o potencial do arquivo da Web como ferramenta ativa de verificação de factos.
+
+Menções Honrosas Visadas
+Público → Prioridade a fontes publico.pt (destacadas com ⭐)
+DNS.PT → Foco em domínios .pt via operadores de pesquisa
+Instalação e Execução
+Pré-requisitos
+Python 3.11+
+API Key do Google Gemini (Google AI Studio
+)
+Setup
 pip install -r requirements.txt
-```
 
-### 3. Configurar a chave de API
-
-```bash
 # Linux / macOS
 export GEMINI_API_KEY="AIzaSy..."
 
 # Windows (PowerShell)
 $env:GEMINI_API_KEY="AIzaSy..."
-```
-
-> A chave da API Google Gemini pode ser obtida em: https://aistudio.google.com/
-
-### 4. Executar a aplicação
-
-```bash
+Executar
 streamlit run app.py
-```
 
-A aplicação abre automaticamente em `http://localhost:8501`
+A aplicação abre em: http://localhost:8501
 
----
+Estrutura do Projeto
+DECEPTIO/
+├── app.py              # Interface Streamlit
+├── arquivo_rag.py      # Pipeline RAG multi-camada
+├── requirements.txt
+└── README.md
+Diferenciação Técnica
+Multi-query retrieval → reduz viés de pesquisa única
+Re-ranking com LLM → melhora precisão semântica
+Auditoria de factos estruturada → não apenas resposta, mas avaliação crítica
+Integração temporal implícita → análise baseada em contexto histórico real
 
-## Estrutura do Projecto
+Autor
 
-```
-ChatArquivo/
-├── app.py              # Interface web (Streamlit) — frontend
-├── arquivo_rag.py      # Motor RAG — lógica central
-├── requirements.txt    # Dependências Python
-└── README.md           # Esta documentação
-```
+Rodrigo Vintém
+Instituto Superior Técnico - Alameda
+rodrigo.vintem@tecnico.ulisboa.pt
 
-### `arquivo_rag.py` — O Motor RAG
-
-| Função | Responsabilidade |
-|--------|-----------------|
-| `pesquisar_arquivo()` | Consulta a API textsearch do Arquivo.pt |
-| `extrair_texto_pagina()` | Faz download e limpa o HTML das páginas arquivadas |
-| `construir_contexto()` | Agrega os textos num bloco de contexto documentado |
-| `gerar_resposta()` | Envia contexto + pergunta ao LLM Gemini |
-| `responder_pergunta()` | Pipeline completo: orquestra todos os passos |
-
-### `app.py` — A Interface Web
-
-- Interface de chat construída com Streamlit
-- Design editorial inspirado em arquivo histórico
-- Suporte a filtros temporais (ano de início e fim)
-- Exibição das fontes do Arquivo.pt com links verificáveis
-- Histórico de conversa dentro da sessão (multi-turno)
-- 8 perguntas de exemplo para guiar novos utilizadores
-
----
-
-## Impacto Social e Científico
-
-### Para investigadores e jornalistas
-O ChatArquivo **reduz de horas para segundos** o tempo necessário para consultar fontes primárias da Web histórica portuguesa. Um jornalista que investigue a cobertura mediática de um evento histórico não precisa de abrir dezenas de links individuais — obtém imediatamente uma síntese com fontes verificáveis.
-
-### Para a educação
-Estudantes e professores podem consultar o passado digital de Portugal de forma conversacional, democratizando o acesso à história contemporânea.
-
-### Para o combate à desinformação
-Ao fornecer fontes históricas verificáveis do Arquivo.pt, o sistema ajuda a contextualizar eventos e a verificar factos com documentação primária.
-
-### Para a preservação da memória digital
-O ChatArquivo demonstra concretamente o valor do Arquivo.pt, motivando a sua utilização e a consciência sobre a importância da preservação da Web.
-
----
-
-## APIs Utilizadas
-
-- **Arquivo.pt Text Search API**: `https://arquivo.pt/textsearch`  
-  Documentação: https://github.com/arquivo/pwa-technologies/wiki/Arquivo.pt-API
-  
-- **Google Gemini API**: `https://generativelanguage.googleapis.com`  
-        Modelos utilizados: `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.5-pro`
-
----
-
-## Autor
-
-[O teu nome]  
-[Faculdade/Universidade]  
-[Email]  
-
-**Prémio Arquivo.pt 2026**  
-Candidatura submetida em maio de 2026
+Oleksandra Kozlova
+Universidade NOVA FCT
+!!!!Email por definir!!!!! - não submeter sem preencher
+Prémio Arquivo.pt 2026
+Candidatura submetida em Maio de 2026

@@ -1,5 +1,5 @@
 # ============================================================
-# ChatArquivo — Dependências Python
+# Deceptio — Dependências Python
 # ============================================================
 # Instalar com:
 #   pip install -r requirements.txt

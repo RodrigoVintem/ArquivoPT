@@ -1,667 +1,752 @@
 """
 ================================================================================
-ChatArquivo — Interface Web (Streamlit)
+DECEPTIO — Interface Web (Streamlit)
 ================================================================================
-
-Frontend do ChatArquivo: assistente de IA conversacional sobre o Arquivo.pt.
-
-BUGS CORRIGIDOS nesta versão:
-  - [FIX] Perguntas de exemplo agora preenchem correctamente o campo de pesquisa
-          (resolvido via st.session_state + key dinâmica, sem st.form)
-  - [FIX] Spinner de carregamento já não torna o painel "Como funciona" invisível
-          (resolvido movendo o spinner para dentro da coluna de conversa)
-  - [FIX] Botão de copiar resposta adicionado a cada mensagem do assistente
-  - [FIX] Seta da barra lateral sempre visível (CSS corrigido)
-  - [FIX] Campo de texto submete correctamente ao clicar Pesquisar mesmo quando
-          preenchido via exemplo (sem st.form, controlo manual via on_change/button)
-  - [FIX] Respostas da API renderizam Markdown (negrito, listas, etc.)
-  - [FIX] Overflow de texto longo nas mensagens corrigido
+Ferramenta de deteção de desinformação histórica usando o Arquivo.pt.
+Prémio Arquivo.pt 2026
 
 Para correr:
-    $ export GEMINI_API_KEY="AIzaSy..."
-    $ streamlit run app.py
-
-Autor: [O teu nome]
-Prémio Arquivo.pt 2026
+    export GEMINI_API_KEY="AIzaSy..."
+    streamlit run app.py
 ================================================================================
 """
 
 import streamlit as st
-from arquivo_rag import responder_pergunta
 import re
+from deceptio_rag import analisar_afirmacao
 
-# ---------------------------------------------------------------------------
-# Configuração da página
-# ---------------------------------------------------------------------------
+# ── Configuração ──────────────────────────────────────────────────────────────
 
 st.set_page_config(
-    page_title="ChatArquivo — A Máquina do Tempo com IA",
-    page_icon="🕰️",
-    layout="wide",
-    initial_sidebar_state="expanded",
+    page_title = "DECEPTIO — Detetor de Desinformação Histórica",
+    page_icon  = "🔍",
+    layout     = "wide",
+    initial_sidebar_state = "expanded",
 )
 
-# ---------------------------------------------------------------------------
-# CSS — Visual documental/editorial. Correcções de bugs visuais incluídas.
-# ---------------------------------------------------------------------------
+# ── CSS ───────────────────────────────────────────────────────────────────────
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;1,8..60,300&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 :root {
-    --fundo:      #F5F0E8;
-    --papel:      #FDFAF4;
-    --borda:      #C8B99A;
-    --texto:      #1A1208;
-    --subtexto:   #5C4A2A;
-    --destaque:   #8B1A1A;
-    --link:       #2C4A7C;
-    --sombra:     rgba(139, 90, 43, 0.12);
-    --fonte-t:    'Playfair Display', Georgia, serif;
-    --fonte-c:    'Source Serif 4', Georgia, serif;
-    --fonte-m:    'JetBrains Mono', 'Courier New', monospace;
+    --bg:        #0A0A0F;
+    --bg2:       #111118;
+    --bg3:       #18181F;
+    --borda:     #2A2A38;
+    --borda2:    #3A3A50;
+    --texto:     #E8E8F0;
+    --subtexto:  #8888AA;
+    --vermelho:  #FF2D55;
+    --verde:     #00FF88;
+    --amarelo:   #FFB800;
+    --azul:      #4D9EFF;
+    --roxo:      #9B5DE5;
+    --fonte:     'Space Grotesk', sans-serif;
+    --mono:      'JetBrains Mono', monospace;
 }
 
-/* ── Base ─────────────────────────────────────────────────────────── */
+/* ── Reset ─── */
 html, body, [class*="css"] {
-    font-family: var(--fonte-c) !important;
-    background-color: var(--fundo) !important;
+    font-family: var(--fonte) !important;
+    background-color: var(--bg) !important;
     color: var(--texto) !important;
 }
-#MainMenu, footer { visibility: hidden; }
-.stDeployButton { display: none; }
+#MainMenu, footer, .stDeployButton { display: none !important; }
+[data-testid="collapsedControl"] { opacity: 1 !important; visibility: visible !important; }
 
-/* ── [FIX] Seta da barra lateral — sempre visível, não apenas no hover ── */
-[data-testid="collapsedControl"],
-button[kind="header"],
-.st-emotion-cache-1rtdyuf,
-.st-emotion-cache-pkbazv {
-    opacity: 1 !important;
-    visibility: visible !important;
-    color: var(--subtexto) !important;
-}
+/* ── Scrollbar ─── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--borda2); border-radius: 2px; }
 
-/* ── Cabeçalho ────────────────────────────────────────────────────── */
-.cab {
-    text-align: center;
-    padding: 1.8rem 0 1.2rem;
-    border-bottom: 3px double var(--borda);
-    margin-bottom: 1.5rem;
+/* ── Cabeçalho ─── */
+.header {
+    padding: 2rem 0 1.5rem;
+    border-bottom: 1px solid var(--borda);
+    margin-bottom: 2rem;
+    position: relative;
 }
-.cab h1 {
-    font-family: var(--fonte-t) !important;
-    font-size: 3rem !important;
-    font-weight: 900 !important;
-    letter-spacing: -1px;
+.header-grid {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+.logo-area { display: flex; align-items: center; gap: 1.2rem; }
+.logo-icon {
+    width: 52px; height: 52px;
+    background: var(--vermelho);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.6rem;
+    flex-shrink: 0;
+    box-shadow: 0 0 20px rgba(255,45,85,0.4);
+}
+.logo-text h1 {
+    font-family: var(--mono) !important;
+    font-size: 2.2rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 6px !important;
     color: var(--texto) !important;
-    margin: 0 0 0.2rem !important;
-    line-height: 1.1;
+    margin: 0 !important;
+    line-height: 1 !important;
 }
-.cab .sub {
-    font-style: italic;
-    font-size: 1rem;
-    color: var(--subtexto);
-}
-.cab .deco {
-    font-family: var(--fonte-m);
+.logo-text .tagline {
+    font-family: var(--mono);
     font-size: 0.65rem;
-    color: var(--borda);
-    letter-spacing: 4px;
+    color: var(--vermelho);
+    letter-spacing: 3px;
     text-transform: uppercase;
-    margin-top: 0.4rem;
+    margin-top: 0.3rem;
+}
+.header-stats {
+    display: flex;
+    gap: 1.5rem;
+    flex-shrink: 0;
+}
+.stat-pill {
+    text-align: center;
+    padding: 0.4rem 1rem;
+    border: 1px solid var(--borda);
+    border-radius: 4px;
+    background: var(--bg2);
+}
+.stat-num {
+    font-family: var(--mono);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--verde);
+}
+.stat-label {
+    font-size: 0.62rem;
+    color: var(--subtexto);
+    text-transform: uppercase;
+    letter-spacing: 1px;
 }
 
-/* ── Mensagens ────────────────────────────────────────────────────── */
-.msg-user {
-    background: #EAE3D5;
-    border-left: 4px solid var(--subtexto);
-    padding: 0.9rem 1.2rem;
-    border-radius: 2px;
-    margin: 0.8rem 0 0.4rem;
-    font-size: 1rem;
-    line-height: 1.6;
-    box-shadow: 2px 2px 0 rgba(0,0,0,0.04);
-    word-break: break-word;
+/* ── Sidebar ─── */
+section[data-testid="stSidebar"] {
+    background: var(--bg2) !important;
+    border-right: 1px solid var(--borda) !important;
 }
-.msg-assistente {
-    background: var(--papel);
+section[data-testid="stSidebar"] * { color: var(--texto) !important; }
+
+/* ── Botões de exemplo ─── */
+.stButton > button {
+    background: var(--bg3) !important;
+    color: var(--subtexto) !important;
+    border: 1px solid var(--borda) !important;
+    border-radius: 4px !important;
+    font-family: var(--fonte) !important;
+    font-size: 0.8rem !important;
+    text-align: left !important;
+    padding: 0.5rem 0.8rem !important;
+    width: 100% !important;
+    transition: all 0.15s !important;
+    white-space: normal !important;
+    height: auto !important;
+    line-height: 1.4 !important;
+}
+.stButton > button:hover {
+    background: var(--bg3) !important;
+    border-color: var(--vermelho) !important;
+    color: var(--texto) !important;
+    box-shadow: 0 0 8px rgba(255,45,85,0.2) !important;
+}
+
+/* ── Input ─── */
+.stTextInput > div > div > input {
+    background: var(--bg2) !important;
+    border: 1px solid var(--borda2) !important;
+    border-radius: 6px !important;
+    color: var(--texto) !important;
+    font-family: var(--fonte) !important;
+    font-size: 1rem !important;
+    padding: 0.7rem 1rem !important;
+}
+.stTextInput > div > div > input:focus {
+    border-color: var(--vermelho) !important;
+    box-shadow: 0 0 0 2px rgba(255,45,85,0.15) !important;
+}
+.stTextInput > div > div > input::placeholder { color: var(--subtexto) !important; }
+
+/* ── Botão primário ─── */
+.stButton > button[kind="primary"],
+button[data-testid="baseButton-primary"] {
+    background: var(--vermelho) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 6px !important;
+    font-family: var(--mono) !important;
+    font-size: 0.85rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 1px !important;
+    padding: 0.65rem 1rem !important;
+    box-shadow: 0 0 16px rgba(255,45,85,0.35) !important;
+    transition: all 0.15s !important;
+}
+.stButton > button[kind="primary"]:hover {
+    box-shadow: 0 0 24px rgba(255,45,85,0.55) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* ── Checkbox e toggle ─── */
+.stCheckbox label, .stCheckbox span { color: var(--subtexto) !important; font-size: 0.85rem !important; }
+.stNumberInput > div > div > input {
+    background: var(--bg2) !important;
+    border: 1px solid var(--borda) !important;
+    color: var(--texto) !important;
+    font-family: var(--mono) !important;
+    border-radius: 4px !important;
+}
+
+/* ── Spinner ─── */
+.stSpinner > div { border-top-color: var(--vermelho) !important; }
+
+/* ── HR ─── */
+hr { border: none !important; border-top: 1px solid var(--borda) !important; margin: 1.2rem 0 !important; }
+
+/* ── Alerta ─── */
+.stAlert { background: var(--bg2) !important; border-radius: 4px !important; color: var(--subtexto) !important; }
+
+/* ── Bloco de afirmação (input do utilizador) ─── */
+.bloco-afirmacao {
+    background: var(--bg2);
     border: 1px solid var(--borda);
-    border-left: 4px solid var(--link);
-    padding: 1.1rem 1.4rem 0.8rem;
-    border-radius: 2px;
-    margin: 0.3rem 0 0.4rem;
-    font-size: 0.96rem;
-    line-height: 1.8;
-    box-shadow: 3px 3px 0 var(--sombra);
-    word-break: break-word;
-    /* [FIX] Garante que o texto não "vaza" para além da caixa */
-    overflow-wrap: break-word;
+    border-left: 3px solid var(--subtexto);
+    border-radius: 6px;
+    padding: 0.9rem 1.2rem;
+    margin: 1rem 0 0.5rem;
+    font-size: 0.95rem;
+    color: var(--subtexto);
+    line-height: 1.5;
 }
-.label {
-    font-family: var(--fonte-m);
+.bloco-afirmacao .label-q {
+    font-family: var(--mono);
     font-size: 0.6rem;
     letter-spacing: 2px;
     text-transform: uppercase;
-    opacity: 0.55;
-    margin-bottom: 0.35rem;
-    display: block;
+    color: var(--borda2);
+    margin-bottom: 0.4rem;
 }
 
-/* ── Fontes ───────────────────────────────────────────────────────── */
-.fontes {
-    background: #F0EBE0;
-    border: 1px dashed var(--borda);
-    border-radius: 2px;
-    padding: 0.8rem 1.1rem;
-    margin: 0.2rem 0 0.8rem;
-    font-size: 0.82rem;
+/* ── Card de resultado ─── */
+.card-resultado {
+    background: var(--bg2);
+    border: 1px solid var(--borda);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 0.4rem 0 0.8rem;
 }
-.fontes-tit {
-    font-family: var(--fonte-m);
-    font-size: 0.62rem;
+.card-resultado-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.4rem;
+    border-bottom: 1px solid var(--borda);
+    background: var(--bg3);
+}
+.card-resultado-body {
+    padding: 1.2rem 1.4rem;
+    font-size: 0.95rem;
+    line-height: 1.75;
+    color: var(--texto);
+}
+
+/* ── Veredito badges ─── */
+.veredito {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    padding: 0.3rem 0.8rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.v-mito       { background: rgba(255,45,85,0.15);  color: var(--vermelho); border: 1px solid var(--vermelho); }
+.v-verdade    { background: rgba(0,255,136,0.1);   color: var(--verde);    border: 1px solid var(--verde); }
+.v-parcial    { background: rgba(255,184,0,0.12);  color: var(--amarelo);  border: 1px solid var(--amarelo); }
+.v-panico     { background: rgba(77,158,255,0.12); color: var(--azul);     border: 1px solid var(--azul); }
+.v-inconcl    { background: rgba(155,93,229,0.12); color: var(--roxo);     border: 1px solid var(--roxo); }
+.v-default    { background: rgba(136,136,170,0.1); color: var(--subtexto); border: 1px solid var(--borda2); }
+
+/* ── Fontes / documentos ─── */
+.fontes-container {
+    background: var(--bg3);
+    border: 1px solid var(--borda);
+    border-radius: 6px;
+    padding: 0.9rem 1.1rem;
+    margin: 0.2rem 0 1.2rem;
+}
+.fontes-titulo {
+    font-family: var(--mono);
+    font-size: 0.6rem;
     letter-spacing: 2px;
     text-transform: uppercase;
     color: var(--subtexto);
-    margin-bottom: 0.5rem;
-    font-weight: 500;
+    margin-bottom: 0.6rem;
 }
-.fonte-item {
-    padding: 0.28rem 0;
-    border-bottom: 1px dotted var(--borda);
+.fonte-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid var(--borda);
+    font-size: 0.82rem;
     line-height: 1.4;
     word-break: break-word;
 }
-.fonte-item:last-child { border-bottom: none; }
-.fonte-data {
-    font-family: var(--fonte-m);
-    font-size: 0.72rem;
-    color: var(--destaque);
-    font-weight: 500;
-}
-.num-doc {
-    display: inline-block;
-    background: var(--link);
-    color: white;
-    font-family: var(--fonte-m);
-    font-size: 0.62rem;
-    padding: 1px 5px;
-    border-radius: 2px;
-    margin-right: 4px;
-    white-space: nowrap;
-}
-
-/* ── Barra lateral ────────────────────────────────────────────────── */
-section[data-testid="stSidebar"] {
-    background-color: #EDE7D9 !important;
-    border-right: 2px solid var(--borda);
-}
-section[data-testid="stSidebar"] h2,
-section[data-testid="stSidebar"] h3 {
-    font-family: var(--fonte-t) !important;
-    color: var(--texto) !important;
-}
-
-/* ── Botões gerais ────────────────────────────────────────────────── */
-.stButton > button {
-    background: transparent !important;
-    color: var(--link) !important;
-    border: 1px solid var(--link) !important;
-    border-radius: 2px !important;
-    font-family: var(--fonte-c) !important;
-    font-size: 0.82rem !important;
-    font-style: italic;
-    text-align: left !important;
-    padding: 0.4rem 0.8rem !important;
-    width: 100%;
-    transition: all 0.15s ease;
-    white-space: normal !important;   /* permite quebra de linha */
-    height: auto !important;
-}
-.stButton > button:hover {
-    background: var(--link) !important;
-    color: white !important;
-}
-
-/* ── Botão de copiar — estilo discreto ───────────────────────────── */
-button[title="Copiar resposta"] {
-    background: transparent !important;
-    border: 1px solid var(--borda) !important;
-    color: var(--subtexto) !important;
-    font-size: 0.75rem !important;
-    padding: 2px 8px !important;
-    float: right;
-    font-style: normal !important;
-    font-family: var(--fonte-m) !important;
-    width: auto !important;
-}
-button[title="Copiar resposta"]:hover {
-    background: var(--borda) !important;
-    color: var(--texto) !important;
-}
-
-/* ── Input e área de texto ───────────────────────────────────────── */
-.stTextInput > div > div > input {
-    font-family: var(--fonte-c) !important;
-    font-size: 1rem !important;
-    background: var(--papel) !important;
-    border: 1px solid var(--borda) !important;
-    border-radius: 2px !important;
-    color: var(--texto) !important;
-    padding: 0.55rem 0.8rem !important;
-}
-.stTextInput > div > div > input:focus {
-    border-color: var(--link) !important;
-    box-shadow: 0 0 0 2px rgba(44,74,124,0.15) !important;
-}
-
-/* ── Spinner — [FIX] não afecta o painel lateral ─────────────────── */
-.stSpinner > div { border-top-color: var(--destaque) !important; }
-
-/* ── Select / number input ───────────────────────────────────────── */
-.stSelectbox > div > div,
-.stNumberInput > div > div > input {
-    background: var(--papel) !important;
-    border: 1px solid var(--borda) !important;
-    border-radius: 2px !important;
-    font-family: var(--fonte-c) !important;
-}
-
-/* ── Separador horizontal ─────────────────────────────────────────── */
-hr { border: none; border-top: 2px double var(--borda); margin: 1.2rem 0; }
-
-/* ── Ecrã de boas-vindas ─────────────────────────────────────────── */
-.boas-vindas {
-    text-align: center;
-    padding: 3rem 2rem;
+.fonte-row:last-child { border-bottom: none; }
+.fonte-badge {
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    background: var(--borda);
     color: var(--subtexto);
-    border: 1px dashed var(--borda);
-    background: var(--papel);
-    border-radius: 2px;
-    margin: 1rem 0;
+    padding: 2px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 1px;
 }
-.boas-vindas .icone { font-size: 2.5rem; margin-bottom: 1rem; }
-.boas-vindas .titulo {
-    font-family: var(--fonte-t);
-    font-size: 1.35rem;
-    margin-bottom: 0.7rem;
-    color: var(--texto);
-}
-.boas-vindas p { font-style: italic; font-size: 0.95rem; line-height: 1.7; }
+.fonte-badge.publico { background: rgba(255,45,85,0.2); color: var(--vermelho); }
+.fonte-data { color: var(--subtexto); font-family: var(--mono); font-size: 0.72rem; flex-shrink: 0; }
+.fonte-link a { color: var(--azul) !important; text-decoration: none !important; }
+.fonte-link a:hover { color: var(--texto) !important; text-decoration: underline !important; }
+.fonte-url { color: var(--borda2); font-size: 0.72rem; font-family: var(--mono); }
 
-/* ── Painel "Como funciona" ──────────────────────────────────────── */
-.como-funciona {
-    background: var(--papel);
+/* ── Ecrã de boas-vindas ─── */
+.welcome {
     border: 1px solid var(--borda);
-    border-radius: 2px;
-    padding: 1rem;
+    border-radius: 8px;
+    padding: 3rem 2rem;
+    text-align: center;
+    background: var(--bg2);
+    margin: 1rem 0;
+    position: relative;
+    overflow: hidden;
+}
+.welcome::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: radial-gradient(circle at 50% 50%, rgba(255,45,85,0.04) 0%, transparent 60%);
+    pointer-events: none;
+}
+.welcome-icon { font-size: 3rem; margin-bottom: 1.2rem; }
+.welcome h2 {
+    font-family: var(--mono) !important;
+    font-size: 1.3rem !important;
+    font-weight: 700 !important;
+    color: var(--texto) !important;
+    margin-bottom: 0.8rem !important;
+    letter-spacing: 1px;
+}
+.welcome p { color: var(--subtexto); font-size: 0.92rem; line-height: 1.7; max-width: 480px; margin: 0 auto; }
+
+/* ── Painel lateral de instruções ─── */
+.painel-info {
+    background: var(--bg2);
+    border: 1px solid var(--borda);
+    border-radius: 8px;
+    padding: 1.2rem;
     font-size: 0.82rem;
     line-height: 1.65;
     position: sticky;
     top: 1rem;
 }
-.como-funciona h4 {
-    font-family: var(--fonte-t);
-    font-size: 1rem;
-    font-weight: 700;
+.painel-info h4 {
+    font-family: var(--mono) !important;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    color: var(--vermelho) !important;
+    letter-spacing: 2px;
+    text-transform: uppercase;
     border-bottom: 1px solid var(--borda);
-    padding-bottom: 0.35rem;
-    margin-bottom: 0.7rem;
-    color: var(--texto);
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.8rem !important;
 }
-.como-funciona p { margin: 0.5rem 0; }
-.como-funciona .nota {
-    font-style: italic;
-    color: var(--subtexto);
-    font-size: 0.76rem;
-    border-top: 1px dashed var(--borda);
-    margin-top: 0.8rem;
-    padding-top: 0.6rem;
+.painel-info .step {
+    display: flex; gap: 0.7rem; margin-bottom: 0.8rem; align-items: flex-start;
+}
+.step-num {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--vermelho);
+    background: rgba(255,45,85,0.1);
+    border: 1px solid rgba(255,45,85,0.3);
+    border-radius: 3px;
+    padding: 1px 6px;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+.painel-info .step p { margin: 0; color: var(--subtexto); font-size: 0.8rem; }
+.painel-info .step strong { color: var(--texto); }
+.legend-item {
+    display: flex; align-items: center; gap: 0.5rem;
+    margin: 0.3rem 0; font-size: 0.75rem; color: var(--subtexto);
+}
+.legend-dot {
+    width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0;
 }
 
-/* ── Área de input fixa no fundo ─────────────────────────────────── */
-.area-input {
-    background: var(--fundo);
-    border-top: 2px double var(--borda);
-    padding: 0.8rem 0 0.3rem;
-    margin-top: 1.2rem;
+/* ── Área de input ─── */
+.input-area {
+    border-top: 1px solid var(--borda);
+    padding: 1rem 0 0.3rem;
+    margin-top: 1.5rem;
+    background: var(--bg);
 }
 
-/* ── Aviso de erro / info ─────────────────────────────────────────── */
-.stAlert { border-radius: 2px !important; font-family: var(--fonte-c) !important; }
+/* ── Copiar botão ─── */
+.copy-btn {
+    background: var(--bg3) !important;
+    border: 1px solid var(--borda) !important;
+    color: var(--subtexto) !important;
+    font-family: var(--mono) !important;
+    font-size: 0.68rem !important;
+    padding: 2px 10px !important;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.1s;
+    float: right;
+    margin-bottom: 0.4rem;
+}
+.copy-btn:hover { border-color: var(--borda2) !important; color: var(--texto) !important; }
+
+/* ── Markdown overrides ─── */
+.card-resultado-body h1,.card-resultado-body h2,.card-resultado-body h3 {
+    color: var(--texto) !important; font-family: var(--fonte) !important;
+    margin-top: 1rem !important; margin-bottom: 0.4rem !important;
+}
+.card-resultado-body strong { color: var(--texto); }
+.card-resultado-body em { color: var(--subtexto); }
+.card-resultado-body ul, .card-resultado-body ol { padding-left: 1.2rem; }
+.card-resultado-body li { margin-bottom: 0.3rem; }
+.card-resultado-body code {
+    background: var(--bg3); color: var(--verde);
+    padding: 1px 5px; border-radius: 3px; font-family: var(--mono); font-size: 0.85em;
+}
+.card-resultado-body a { color: var(--azul) !important; }
 </style>
 """, unsafe_allow_html=True)
 
-
-# ---------------------------------------------------------------------------
-# Inicialização do estado da sessão
-# ---------------------------------------------------------------------------
+# ── Session state ─────────────────────────────────────────────────────────────
 
 defaults = {
-    "historico_display": [],   # Lista de (pergunta, resposta, fontes) para a UI
-    "historico_llm":     [],   # Histórico no formato Gemini (role + content)
-    "pergunta_actual":   "",   # Texto actual no campo de input
-    "aguardar_resposta": False,# Flag: está a processar uma pergunta?
-    "n_input":           0,    # Contador para forçar re-render do campo (ao injectar exemplo)
-    "traduzir_ingles":   False,
+    "historico":       [],   # lista de (afirmacao, resultado_dict, fontes)
+    "historico_llm":   [],   # formato Gemini
+    "input_actual":    "",
+    "n_input":         0,
+    "total_analisados": 0,
+    "total_mitos":     0,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-idioma_ui = "en" if st.session_state.traduzir_ingles else "pt"
 
-TEXTOS = {
-    "pt": {
-        "subtitle": "A Maquina do Tempo com IA - Consulta a memoria da Internet portuguesa",
-        "sidebar_intro": "*Assistente de IA que usa documentos historicos do **Arquivo.pt** para responder as tuas perguntas sobre o passado da Internet portuguesa.*",
-        "translate_label": "Translate page and new results to English",
-        "years_title": "### Intervalo Temporal",
-        "years_caption": "Restringe a pesquisa a um periodo historico.",
-        "years_toggle": "Activar filtro por anos",
-        "from": "De",
-        "to": "Ate",
-        "examples_title": "### Perguntas de Exemplo",
-        "examples_caption": "Clica para preencher o campo de pesquisa.",
-        "clear": "Limpar conversa",
-        "user": "Utilizador",
-        "assistant": "ChatArquivo",
-        "copy": "Copiar",
-        "copied": "Copiado!",
-        "copy_error": "Erro",
-        "sources": "Fontes do Arquivo.pt",
-        "doc": "DOC",
-        "untitled": "Sem titulo",
-        "sidebar_footer": (
-            "**ChatArquivo** - Premio Arquivo.pt 2026.\n\n"
-            "Usa a API do [Arquivo.pt](https://arquivo.pt) e o Google Gemini "
-            "numa arquitectura RAG (*Retrieval-Augmented Generation*)."
-        ),
-        "welcome_title": "Consulta a memoria da Internet portuguesa",
-        "welcome_body": "Faz uma pergunta sobre qualquer acontecimento historico portugues.<br>O <strong>ChatArquivo</strong> pesquisa documentos reais do <strong>Arquivo.pt</strong> e usa IA para sintetizar uma resposta fundamentada com fontes verificaveis.",
-        "placeholder": "Ex: O que se dizia sobre a crise do euro em Portugal em 2011?",
-        "search": "Pesquisar",
-        "spinner": "A pesquisar no Arquivo.pt e a analisar documentos historicos...",
-        "empty_warning": "Por favor, escreve uma pergunta antes de pesquisar.",
-        "how_html": """
-        <h4>Como funciona</h4>
-        <p><strong>1. Pesquisa</strong><br>A tua pergunta e enviada a API do <em>Arquivo.pt</em>, que devolve paginas historicas relevantes.</p>
-        <p><strong>2. Extraccao</strong><br>O texto de cada pagina arquivada e extraido e limpo (HTML para texto legivel).</p>
-        <p><strong>3. Geracao</strong><br>O <strong>Google Gemini</strong> sintetiza uma resposta fundamentada, citando as fontes.</p>
-        <p><strong>4. Fontes</strong><br>Cada resposta inclui links verificaveis para os documentos originais no Arquivo.pt.</p>
-        <div class="nota">Arquitectura <strong>RAG</strong><br>(Retrieval-Augmented Generation)<br><br>O sistema nunca inventa factos; as respostas baseiam-se exclusivamente em documentos reais preservados pelo Arquivo.pt.</div>
-        """,
-    },
-    "en": {
-        "subtitle": "An AI Time Machine for exploring Portugal's web memory",
-        "sidebar_intro": "*AI assistant that uses historical **Arquivo.pt** documents to answer questions about Portugal's web past.*",
-        "translate_label": "Translate page and new results to English",
-        "years_title": "### Time Range",
-        "years_caption": "Restrict the search to a historical period.",
-        "years_toggle": "Enable year filter",
-        "from": "From",
-        "to": "To",
-        "examples_title": "### Example Questions",
-        "examples_caption": "Click to fill the search field.",
-        "clear": "Clear conversation",
-        "user": "User",
-        "assistant": "ChatArquivo",
-        "copy": "Copy",
-        "copied": "Copied!",
-        "copy_error": "Error",
-        "sources": "Arquivo.pt Sources",
-        "doc": "DOC",
-        "untitled": "Untitled",
-        "sidebar_footer": (
-            "**ChatArquivo** - Arquivo.pt Prize 2026.\n\n"
-            "Uses the [Arquivo.pt](https://arquivo.pt) API and Google Gemini "
-            "in a RAG (*Retrieval-Augmented Generation*) architecture."
-        ),
-        "welcome_title": "Search Portugal's web memory",
-        "welcome_body": "Ask a question about any Portuguese historical event.<br><strong>ChatArquivo</strong> searches real documents from <strong>Arquivo.pt</strong> and uses AI to synthesize a sourced answer.",
-        "placeholder": "Ex: What was being said about the euro crisis in Portugal in 2011?",
-        "search": "Search",
-        "spinner": "Searching Arquivo.pt and analyzing historical documents...",
-        "empty_warning": "Please write a question before searching.",
-        "how_html": """
-        <h4>How It Works</h4>
-        <p><strong>1. Search</strong><br>Your question is sent to the <em>Arquivo.pt</em> API, which returns relevant historical pages.</p>
-        <p><strong>2. Extraction</strong><br>The text from each archived page is extracted and cleaned (HTML to readable text).</p>
-        <p><strong>3. Generation</strong><br><strong>Google Gemini</strong> synthesizes a sourced answer from the retrieved documents.</p>
-        <p><strong>4. Sources</strong><br>Each answer includes verifiable links to the original documents in Arquivo.pt.</p>
-        <div class="nota"><strong>RAG</strong> architecture<br>(Retrieval-Augmented Generation)<br><br>The system does not invent facts; answers are based only on real documents preserved by Arquivo.pt.</div>
-        """,
-    },
-}
-t = TEXTOS[idioma_ui]
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def classificar_veredito(texto: str) -> tuple[str, str, str]:
+    """
+    Extrai o veredito do texto de resposta e devolve (classe_css, emoji, label).
+    Procura pelo padrão **VEREDITO:** ou variantes no início da resposta.
+    """
+    t = texto.upper()
+    if any(x in t for x in ["MITO HISTÓRICO", "MITO HISTORICO", "FALSO", "DESINFORMAÇÃO", "DESINFORMACAO"]):
+        return "v-mito",   "🔴", "MITO HISTÓRICO"
+    if any(x in t for x in ["PÂNICO INJUSTIFICADO", "PANICO INJUSTIFICADO", "EXAGERADO", "ALARME INJUSTIFICADO"]):
+        return "v-panico", "🔵", "PÂNICO INJUSTIFICADO"
+    if any(x in t for x in ["VERDADE PARCIAL", "PARCIALMENTE VERDADEIRO", "PARCIALMENTE CORRETO", "PARCIALMENTE CORRECTO"]):
+        return "v-parcial","🟡", "VERDADE PARCIAL"
+    if any(x in t for x in ["FACTO COMPROVADO", "FACTO CONFIRMADO", "VERDADE CONFIRMADA", "VERDADEIRO", "CONFIRMADO"]):
+        return "v-verdade","🟢", "FACTO CONFIRMADO"
+    if any(x in t for x in ["INCONCLUSIVO", "INFORMAÇÃO INSUFICIENTE", "INFORMACAO INSUFICIENTE", "SEM DADOS"]):
+        return "v-inconcl","🟣", "INCONCLUSIVO"
+    return "v-default", "⚪", "EM ANÁLISE"
 
 
-def linkar_citacoes_documentos(texto: str, fontes: list[dict]) -> str:
-    links_por_numero = {
-        str(f.get("numero")): (f.get("link_arch") or "#")
-        for f in fontes
-        if f.get("numero")
-    }
+def html_fontes(fontes: list[dict]) -> str:
+    """Constrói o HTML do painel de fontes do Arquivo.pt."""
+    if not fontes:
+        return ""
+    html = '<div class="fontes-container"><div class="fontes-titulo">📁 Fontes do Arquivo.pt</div>'
+    for f in fontes:
+        link   = f.get("link_arch", "#") or "#"
+        titulo = f.get("titulo", "Sem título")[:85]
+        data   = f.get("data", "")
+        num    = f.get("numero", "")
+        url_o  = f.get("url_orig", "")
+        # Destaca fontes do Público
+        badge_cls = "publico" if "publico.pt" in url_o.lower() else ""
+        html += (
+            f'<div class="fonte-row">'
+            f'<span class="fonte-badge {badge_cls}">DOC {num}</span>'
+            f'<span class="fonte-data">{data}</span>'
+            f'<span class="fonte-link">'
+            f'<a href="{link}" target="_blank" rel="noopener">{titulo}</a>'
+            f'<br><span class="fonte-url">{url_o[:70]}</span>'
+            f'</span>'
+            f'</div>'
+        )
+    html += '</div>'
+    return html
 
-    def substituir(match: re.Match) -> str:
-        numero = match.group(1)
-        link = links_por_numero.get(numero)
-        if not link:
-            return match.group(0)
-        return f'[[DOCUMENTO {numero}]]({link})'
 
-    return re.sub(r"\[DOCUMENTO\s+(\d+)\]", substituir, texto)
+def linkar_docs(texto: str, fontes: list[dict]) -> str:
+    """Substitui [DOCUMENTO N] por links clicáveis."""
+    links = {str(f.get("numero")): (f.get("link_arch") or "#") for f in fontes}
+    def sub(m):
+        n = m.group(1)
+        return f'[[DOC {n}]]({links[n]})' if n in links else m.group(0)
+    return re.sub(r"\[DOCUMENTO\s*(\d+)\]", sub, texto)
 
 
-# ---------------------------------------------------------------------------
-# Cabeçalho
-# ---------------------------------------------------------------------------
+# ── Cabeçalho ─────────────────────────────────────────────────────────────────
+
+n_analisados = st.session_state.total_analisados
+n_mitos      = st.session_state.total_mitos
 
 st.markdown(f"""
-<div class="cab">
-    <div class="deco">Arquivo.pt x AI</div>
-    <h1>ChatArquivo</h1>
-    <div class="sub">{t["subtitle"]}</div>
+<div class="header">
+  <div class="header-grid">
+    <div class="logo-area">
+      <div class="logo-icon">🔍</div>
+      <div class="logo-text">
+        <h1>DECEPTIO</h1>
+        <div class="tagline">Detetor de Desinformação Histórica · Arquivo.pt × IA</div>
+      </div>
+    </div>
+    <div class="header-stats">
+      <div class="stat-pill">
+        <div class="stat-num">{n_analisados}</div>
+        <div class="stat-label">Analisados</div>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-num" style="color:var(--vermelho)">{n_mitos}</div>
+        <div class="stat-label">Mitos / Falsos</div>
+      </div>
+    </div>
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
 
-# ---------------------------------------------------------------------------
-# Barra lateral
-# ---------------------------------------------------------------------------
+# ── Sidebar ───────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.markdown("## ChatArquivo")
-    st.markdown(t["sidebar_intro"])
-    st.checkbox(t["translate_label"], key="traduzir_ingles")
+    st.markdown("### 🔍 DECEPTIO")
+    st.caption(
+        "Ferramenta de deteção de desinformação histórica. "
+        "Cruza documentos reais do **Arquivo.pt** com o conhecimento "
+        "global da IA para expor mitos e factos da Internet portuguesa."
+    )
     st.markdown("---")
 
-    # ── Filtro temporal ──────────────────────────────────────────────────
-    st.markdown(t["years_title"])
-    st.caption(t["years_caption"])
-    usar_filtro = st.checkbox(t["years_toggle"], value=False)
-
+    st.markdown("#### 📅 Filtro Temporal")
+    st.caption("Limita os documentos a um período histórico.")
+    usar_filtro = st.checkbox("Ativar filtro por anos", value=False)
     from_year, to_year = None, None
     if usar_filtro:
         c1, c2 = st.columns(2)
         with c1:
-            from_year = str(st.number_input(t["from"], min_value=1996, max_value=2025, value=2000, step=1))
+            from_year = str(st.number_input("De", min_value=1996, max_value=2025, value=1998, step=1))
         with c2:
-            to_year   = str(st.number_input(t["to"], min_value=1996, max_value=2025, value=2010, step=1))
+            to_year   = str(st.number_input("Até", min_value=1996, max_value=2025, value=2005, step=1))
 
     st.markdown("---")
+    st.markdown("#### 🧪 Casos de Teste")
+    st.caption("Afirmações históricas para verificar.")
 
-    # ── Perguntas de exemplo ─────────────────────────────────────────────
-    st.markdown(t["examples_title"])
-    st.caption(t["examples_caption"])
-
-    exemplos = [
-        "O que se dizia sobre a adoção do Euro em Portugal em 2002?",
-        "Como reagiram os meios de comunicação portugueses ao Bug do Ano 2000 (Y2K)?",
-        "Quem era o Presidente da República de Portugal em 2010?",
-        "Como foi noticiada a entrada de Portugal na União Europeia em 1986?",
-        "O que escrevia a imprensa sobre a crise financeira de 2008 em Portugal?",
-        "Como eram as primeiras páginas web portuguesas nos anos 1990?",
-        "O que se dizia sobre o Mundial de Futebol de 2002 em Portugal?",
-        "Como era descrita a Internet em Portugal no final dos anos 1990?",
+    casos = [
+        "O Bug do Ano 2000 (Y2K) ia destruir toda a informática em Portugal",
+        "A Ponte Vasco da Gama tinha falhas estruturais graves quando abriu em 1998",
+        "Portugal estava completamente preparado para o Euro antes de 2002",
+        "A Internet em Portugal nos anos 90 era rápida e acessível a todos",
+        "O Público foi o primeiro jornal português a ter presença online",
+        "A crise financeira de 2008 não afetou os bancos portugueses",
+        "Portugal ganhou o Mundial de 2002 com Luís Figo como capitão",
+        "A EXPO 98 em Lisboa foi um fracasso económico para Portugal",
     ]
-    if idioma_ui == "en":
-        exemplos = [
-            "What was being said about the adoption of the Euro in Portugal in 2002?",
-            "How did Portuguese media react to the Year 2000 bug (Y2K)?",
-            "Who was the President of Portugal in 2010?",
-            "How was Portugal's entry into the European Union in 1986 reported?",
-            "What did the press write about the 2008 financial crisis in Portugal?",
-            "What were the first Portuguese web pages like in the 1990s?",
-            "What was being said about the 2002 Football World Cup in Portugal?",
-            "How was the Internet in Portugal described in the late 1990s?",
-        ]
 
-    for i, exemplo in enumerate(exemplos):
-        # [FIX] Ao clicar, guarda o exemplo no session_state E incrementa o contador
-        # de input para forçar o Streamlit a re-renderizar o campo com o novo valor.
-        if st.button(f"📰 {exemplo[:52]}…", key=f"exemplo_{i}"):
-            st.session_state.pergunta_actual = exemplo
-            st.session_state.n_input += 1  # Força novo widget key → re-renderiza com valor certo
+    for i, caso in enumerate(casos):
+        if st.button(f"🧪 {caso[:50]}…", key=f"caso_{i}"):
+            st.session_state.input_actual = caso
+            st.session_state.n_input += 1
             st.rerun()
 
     st.markdown("---")
-
-    if st.button(t["clear"], use_container_width=True):
-        st.session_state.historico_display = []
-        st.session_state.historico_llm    = []
-        st.session_state.pergunta_actual  = ""
+    if st.button("🗑️ Limpar análises", use_container_width=True):
+        st.session_state.historico      = []
+        st.session_state.historico_llm  = []
+        st.session_state.input_actual   = ""
+        st.session_state.total_analisados = 0
+        st.session_state.total_mitos    = 0
         st.rerun()
 
     st.markdown("---")
-    st.caption(t["sidebar_footer"])
+    st.caption(
+        "**DECEPTIO** — Prémio Arquivo.pt 2026\n\n"
+        "Usa a API do [Arquivo.pt](https://arquivo.pt) e Google Gemini "
+        "com RAG de 4 camadas. Dá prioridade a fontes `.pt` e ao [Público](https://publico.pt)."
+    )
 
 
-# ---------------------------------------------------------------------------
-# Layout principal: conversa (3) + painel info (1)
-# ---------------------------------------------------------------------------
+# ── Layout principal ──────────────────────────────────────────────────────────
 
-col_conv, col_info = st.columns([3, 1])
+col_main, col_side = st.columns([3, 1])
 
-# ── Painel "Como funciona" (coluna direita) ─────────────────────────────
-with col_info:
-    painel_info_html = '<div class="como-funciona">' + t["how_html"] + '</div>'
-    st.html(painel_info_html)
+# ── Painel lateral de instruções ──────────────────────────────────────────────
+
+with col_side:
+    st.markdown("""
+    <div class="painel-info">
+      <h4>⚙ Como Funciona</h4>
+
+      <div class="step">
+        <span class="step-num">C1</span>
+        <p><strong>Query Expansion</strong><br>O Gemini gera 3 queries optimizadas para o Arquivo.pt.</p>
+      </div>
+      <div class="step">
+        <span class="step-num">C2</span>
+        <p><strong>Retrieval</strong><br>Recupera até 45 documentos de fontes <code>.pt</code> e <code>publico.pt</code>.</p>
+      </div>
+      <div class="step">
+        <span class="step-num">C3</span>
+        <p><strong>Re-ranking</strong><br>Seleciona os 5 mais relevantes para a afirmação.</p>
+      </div>
+      <div class="step">
+        <span class="step-num">C4</span>
+        <p><strong>Auditoria IA</strong><br>Cruza os documentos históricos com o conhecimento global e emite um veredito.</p>
+      </div>
+
+      <hr style="border-color: #2A2A38; margin: 0.8rem 0;">
+
+      <div style="font-size:0.72rem; color: #8888AA; margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:1px; font-family: var(--mono);">Legenda de Vereditos</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#FF2D55"></div> Mito Histórico / Falso</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#00FF88"></div> Facto Confirmado</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#FFB800"></div> Verdade Parcial</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#4D9EFF"></div> Pânico Injustificado</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#9B5DE5"></div> Inconclusivo</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
-# ── Área de conversa (coluna esquerda) ──────────────────────────────────
-with col_conv:
+# ── Área de conversa ──────────────────────────────────────────────────────────
 
-    # Histórico de conversa
-    if st.session_state.historico_display:
-        for idx, (perg, resp, fontes) in enumerate(st.session_state.historico_display):
+with col_main:
 
-            # Pergunta do utilizador
+    if st.session_state.historico:
+        for afirmacao, resposta, fontes in st.session_state.historico:
+            css, emoji, label = classificar_veredito(resposta)
+
+            # Afirmação do utilizador
             st.markdown(
-                f'<div class="msg-user"><span class="label">{t["user"]}</span>{perg}</div>',
+                f'<div class="bloco-afirmacao">'
+                f'<div class="label-q">▶ Afirmação submetida</div>'
+                f'{afirmacao}'
+                f'</div>',
                 unsafe_allow_html=True
             )
 
-            # Resposta do assistente
+            # Card de resultado com veredito
             st.markdown(
-                f'<div class="msg-assistente"><span class="label">{t["assistant"]}</span>',
+                f'<div class="card-resultado">'
+                f'<div class="card-resultado-header">'
+                f'<span class="veredito {css}">{emoji} {label}</span>'
+                f'<span style="font-family:var(--mono);font-size:0.7rem;color:var(--subtexto);margin-left:auto;">'
+                f'DECEPTIO · Arquivo.pt</span>'
+                f'</div>'
+                f'<div class="card-resultado-body">',
                 unsafe_allow_html=True
             )
-            # [FIX] Usa st.markdown nativo para renderizar Markdown da resposta (negrito, listas, etc.)
-            st.markdown(linkar_citacoes_documentos(resp, fontes))
-            st.markdown("</div>", unsafe_allow_html=True)
 
-            # Fontes do Arquivo.pt
-            if fontes:
-                fontes_html = f'<div class="fontes"><div class="fontes-tit">{t["sources"]}</div>'
-                for f in fontes:
-                    link  = f.get("link_arch", "#") or "#"
-                    tit   = f.get("titulo", t["untitled"])[:80]
-                    data  = f.get("data", "")
-                    num   = f.get("numero", "")
-                    url_o = f.get("url_orig", "")[:70]
-                    fontes_html += (
-                        f'<div class="fonte-item">'
-                        f'<span class="num-doc">{t["doc"]}&nbsp;{num}</span>'
-                        f'<span class="fonte-data">{data}</span> — '
-                        f'<a href="{link}" target="_blank" rel="noopener" '
-                        f'style="color:var(--link);">{tit}</a><br>'
-                        f'<small style="color:var(--subtexto);font-style:italic;">{url_o}</small>'
-                        f'</div>'
-                    )
-                fontes_html += '</div>'
-                st.markdown(fontes_html, unsafe_allow_html=True)
+            # Botão copiar + corpo da resposta
+            resp_js = resposta.replace("`", "\\`").replace("\n", "\\n")
+            st.markdown(
+                f"""<div style="text-align:right;margin-bottom:0.3rem;">
+                <button class="copy-btn"
+                  onclick="navigator.clipboard.writeText(`{resp_js}`).then(
+                    ()=>{{this.textContent='✓ Copiado';setTimeout(()=>this.textContent='📋 Copiar',2000)}},
+                    ()=>{{this.textContent='Erro'}}
+                  )">📋 Copiar</button></div>""",
+                unsafe_allow_html=True
+            )
+            st.markdown(linkar_docs(resposta, fontes))
+            st.markdown("</div></div>", unsafe_allow_html=True)
 
+            # Fontes
+            st.markdown(html_fontes(fontes), unsafe_allow_html=True)
             st.markdown("<hr>", unsafe_allow_html=True)
 
     else:
         # Ecrã de boas-vindas
-        st.markdown(f"""
-        <div class="boas-vindas">
-            <div class="icone">🗞️</div>
-            <div class="titulo">{t["welcome_title"]}</div>
-            <p>{t["welcome_body"]}</p>
+        st.markdown("""
+        <div class="welcome">
+          <div class="welcome-icon">🔍</div>
+          <h2>VERIFICAÇÃO DE FACTOS HISTÓRICOS</h2>
+          <p>
+            Submete uma afirmação, mito ou teoria sobre a história da Internet portuguesa.<br>
+            O <strong>DECEPTIO</strong> cruza documentos reais do <strong>Arquivo.pt</strong>
+            com o conhecimento global da IA para emitir um veredito fundamentado.
+          </p>
         </div>
         """, unsafe_allow_html=True)
 
-    # ── Campo de input ────────────────────────────────────────────────────
-    st.markdown('<div class="area-input">', unsafe_allow_html=True)
-
+    # ── Campo de input ─────────────────────────────────────────────────────────
+    st.markdown('<div class="input-area">', unsafe_allow_html=True)
     col_in, col_btn = st.columns([5, 1])
 
     with col_in:
-        # [FIX] key dinâmica (inclui n_input) faz o Streamlit criar um widget novo
-        # cada vez que um exemplo é injectado, garantindo que o value é aplicado.
-        # Sem st.form → o valor não é "esquecido" pelo clear_on_submit.
-        pergunta_input = st.text_input(
-            label            = "Pergunta",
-            value            = st.session_state.pergunta_actual,
-            placeholder      = t["placeholder"],
+        input_val = st.text_input(
+            label            = "Afirmação",
+            value            = st.session_state.input_actual,
+            placeholder      = "Ex: O Bug do Ano 2000 ia destruir os bancos portugueses...",
             label_visibility = "collapsed",
-            key              = f"input_pergunta_{st.session_state.n_input}",
+            key              = f"input_{st.session_state.n_input}",
         )
-
     with col_btn:
-        submeter = st.button(t["search"], use_container_width=True, type="primary")
+        analisar = st.button("⚡ ANALISAR", use_container_width=True, type="primary")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-# ---------------------------------------------------------------------------
-# Processamento da pergunta
-# ---------------------------------------------------------------------------
+# ── Processamento ─────────────────────────────────────────────────────────────
 
-# Normaliza: usa o valor do campo (digitado) ou o valor do session_state (exemplo injectado)
-texto_final = pergunta_input.strip() if pergunta_input.strip() else st.session_state.pergunta_actual.strip()
+texto_final = input_val.strip() if input_val.strip() else st.session_state.input_actual.strip()
 
-if submeter and texto_final:
+if analisar and texto_final:
+    st.session_state.input_actual = texto_final
 
-    # Actualiza o session_state com o texto que vai ser processado
-    st.session_state.pergunta_actual = texto_final
-
-    # Spinner apenas na coluna de conversa — não afecta o painel info
-    with col_conv:
-        with st.spinner(t["spinner"]):
-            resposta, fontes = responder_pergunta(
-                pergunta  = texto_final,
+    with col_main:
+        with st.spinner("🔍 A pesquisar no Arquivo.pt e a auditar com IA..."):
+            resposta, fontes = analisar_afirmacao(
+                afirmacao = texto_final,
                 from_year = from_year if usar_filtro else None,
                 to_year   = to_year   if usar_filtro else None,
                 historico = st.session_state.historico_llm,
-                idioma_resposta = idioma_ui,
             )
 
-    # Guarda no histórico de display
-    st.session_state.historico_display.append((texto_final, resposta, fontes))
+    # Atualiza contadores
+    st.session_state.total_analisados += 1
+    css, _, _ = classificar_veredito(resposta)
+    if css == "v-mito":
+        st.session_state.total_mitos += 1
 
-    # Guarda no histórico do LLM (formato Gemini)
+    st.session_state.historico.append((texto_final, resposta, fontes))
     st.session_state.historico_llm.append({"role": "user",  "content": texto_final})
     st.session_state.historico_llm.append({"role": "model", "content": resposta})
 
-    # Limpa o campo após submissão e incrementa a key para re-renderizar
-    st.session_state.pergunta_actual = ""
+    st.session_state.input_actual = ""
     st.session_state.n_input += 1
-
     st.rerun()
 
-elif submeter:
-    st.warning(t["empty_warning"])
+elif analisar:
+    st.warning("✏️ Escreve uma afirmação para analisar.")
