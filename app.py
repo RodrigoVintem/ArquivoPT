@@ -1,8 +1,8 @@
 """
 ================================================================================
-DECEPTIO — Interface Web (Streamlit)
+DECEPTIO - Interface Web (Streamlit)
 ================================================================================
-Ferramenta de deteção de desinformação histórica usando o Arquivo.pt.
+Ferramenta de analise de narrativas historicas usando o Arquivo.pt.
 Prémio Arquivo.pt 2026
 
 Para correr:
@@ -13,13 +13,13 @@ Para correr:
 
 import streamlit as st
 import re
-from deceptio_rag import analisar_afirmacao
+from deceptio_rag import analisar_topico
 
 # ── Configuração ──────────────────────────────────────────────────────────────
 
 st.set_page_config(
-    page_title = "DECEPTIO — Detetor de Desinformação Histórica",
-    page_icon  = "🔍",
+    page_title = "DECEPTIO - Analise de Narrativas Historicas",
+    page_icon  = "🧭",
     layout     = "wide",
     initial_sidebar_state = "expanded",
 )
@@ -459,6 +459,9 @@ def classificar_veredito(texto: str) -> tuple[str, str, str]:
     Extrai o veredito do texto de resposta e devolve (classe_css, emoji, label).
     Procura pelo padrão **VEREDITO:** ou variantes no início da resposta.
     """
+    if "Erro" not in texto and "Limite de pedidos" not in texto:
+        return "v-default", "🧭", "ANÁLISE DE NARRATIVA"
+
     t = texto.upper()
     if any(x in t for x in ["MITO HISTÓRICO", "MITO HISTORICO", "FALSO", "DESINFORMAÇÃO", "DESINFORMACAO"]):
         return "v-mito",   "🔴", "MITO HISTÓRICO"
@@ -470,7 +473,7 @@ def classificar_veredito(texto: str) -> tuple[str, str, str]:
         return "v-verdade","🟢", "FACTO CONFIRMADO"
     if any(x in t for x in ["INCONCLUSIVO", "INFORMAÇÃO INSUFICIENTE", "INFORMACAO INSUFICIENTE", "SEM DADOS"]):
         return "v-inconcl","🟣", "INCONCLUSIVO"
-    return "v-default", "⚪", "EM ANÁLISE"
+    return "v-default", "🧭", "ANÁLISE DE NARRATIVA"
 
 
 def html_fontes(fontes: list[dict]) -> str:
@@ -501,12 +504,50 @@ def html_fontes(fontes: list[dict]) -> str:
 
 
 def linkar_docs(texto: str, fontes: list[dict]) -> str:
-    """Substitui [DOCUMENTO N] por links clicáveis."""
+    """Normaliza referências de fonte para links com o texto único DOC N."""
     links = {str(f.get("numero")): (f.get("link_arch") or "#") for f in fontes}
-    def sub(m):
-        n = m.group(1)
-        return f'[[DOC {n}]]({links[n]})' if n in links else m.group(0)
-    return re.sub(r"\[DOCUMENTO\s*(\d+)\]", sub, texto)
+
+    def link(n: str) -> str:
+        return f"[DOC {n}]({links[n]})" if n in links else f"DOC {n}"
+
+    def sub_ref(m):
+        return link(m.group(1))
+
+    def sub_lista(m):
+        nums = re.findall(r"\d+", m.group(1))
+        if not nums:
+            return m.group(0)
+        return ", ".join(link(n) for n in nums)
+
+    # [DOC 1, DOC 2], [DOC 1, 2], [DOCS 1 e 2]
+    texto = re.sub(
+        r"\[\s*((?:DOC(?:UMENTO)?S?\s*:?\s*)?\d+(?:\s*(?:,|;|e|and)\s*(?:DOC(?:UMENTO)?S?\s*:?\s*)?\d+)+)\s*\](?!\()",
+        sub_lista,
+        texto,
+        flags=re.IGNORECASE,
+    )
+
+    # [DOC 1], [DOCUMENTO: 1], [[DOC 1]]
+    texto = re.sub(
+        r"\[\[\s*DOC(?:UMENTO)?\s*:?\s*(\d+)\s*\]\](?!\()",
+        sub_ref,
+        texto,
+        flags=re.IGNORECASE,
+    )
+    texto = re.sub(
+        r"\[\s*DOC(?:UMENTO)?\s*:?\s*(\d+)\s*\](?!\()",
+        sub_ref,
+        texto,
+        flags=re.IGNORECASE,
+    )
+
+    # Plain DOC 1, while avoiding already linked markdown text: [DOC 1](...)
+    return re.sub(
+        r"(?<!\[)\bDOC(?:UMENTO)?\s*:?\s*(\d+)\b(?!\]\()",
+        sub_ref,
+        texto,
+        flags=re.IGNORECASE,
+    )
 
 
 # ── Cabeçalho ─────────────────────────────────────────────────────────────────
@@ -521,7 +562,7 @@ st.markdown(f"""
       <div class="logo-icon">🔍</div>
       <div class="logo-text">
         <h1>DECEPTIO</h1>
-        <div class="tagline">Detetor de Desinformação Histórica · Arquivo.pt × IA</div>
+        <div class="tagline">Mapa de narrativas históricas · Arquivo.pt × IA</div>
       </div>
     </div>
     <div class="header-stats">
@@ -531,7 +572,7 @@ st.markdown(f"""
       </div>
       <div class="stat-pill">
         <div class="stat-num" style="color:var(--vermelho)">{n_mitos}</div>
-        <div class="stat-label">Mitos / Falsos</div>
+        <div class="stat-label">Fontes</div>
       </div>
     </div>
   </div>
@@ -544,9 +585,9 @@ st.markdown(f"""
 with st.sidebar:
     st.markdown("### 🔍 DECEPTIO")
     st.caption(
-        "Ferramenta de deteção de desinformação histórica. "
-        "Cruza documentos reais do **Arquivo.pt** com o conhecimento "
-        "global da IA para expor mitos e factos da Internet portuguesa."
+        "Ferramenta para analisar como um tema mudou ao longo do tempo. "
+        "Encontra artigos no **Arquivo.pt**, extrai alegações e mostra "
+        "timeline, fiabilidade das fontes, desacordos e mudança narrativa."
     )
     st.markdown("---")
 
@@ -563,17 +604,17 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("#### 🧪 Casos de Teste")
-    st.caption("Afirmações históricas para verificar.")
+    st.caption("Temas históricos para explorar.")
 
     casos = [
-        "O Bug do Ano 2000 (Y2K) ia destruir toda a informática em Portugal",
-        "A Ponte Vasco da Gama tinha falhas estruturais graves quando abriu em 1998",
-        "Portugal estava completamente preparado para o Euro antes de 2002",
-        "A Internet em Portugal nos anos 90 era rápida e acessível a todos",
-        "O Público foi o primeiro jornal português a ter presença online",
-        "A crise financeira de 2008 não afetou os bancos portugueses",
-        "Portugal ganhou o Mundial de 2002 com Luís Figo como capitão",
-        "A EXPO 98 em Lisboa foi um fracasso económico para Portugal",
+        "Bug do Ano 2000 em Portugal",
+        "Entrada do Euro em Portugal",
+        "EXPO 98 e impacto económico",
+        "Internet em Portugal nos anos 90",
+        "Crise financeira de 2008 nos bancos portugueses",
+        "Ponte Vasco da Gama na imprensa portuguesa",
+        "Gripe A nos media portugueses",
+        "Ensino superior e propinas em Portugal",
     ]
 
     for i, caso in enumerate(casos):
@@ -620,21 +661,21 @@ with col_side:
       </div>
       <div class="step">
         <span class="step-num">C3</span>
-        <p><strong>Re-ranking</strong><br>Seleciona os 5 mais relevantes para a afirmação.</p>
+        <p><strong>Re-ranking</strong><br>Seleciona os artigos mais relevantes para o tema.</p>
       </div>
       <div class="step">
         <span class="step-num">C4</span>
-        <p><strong>Auditoria IA</strong><br>Cruza os documentos históricos com o conhecimento global e emite um veredito.</p>
+        <p><strong>Análise IA</strong><br>Extrai alegações, organiza a timeline e identifica desacordos.</p>
       </div>
 
       <hr style="border-color: #2A2A38; margin: 0.8rem 0;">
 
-      <div style="font-size:0.72rem; color: #8888AA; margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:1px; font-family: var(--mono);">Legenda de Vereditos</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#FF2D55"></div> Mito Histórico / Falso</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#00FF88"></div> Facto Confirmado</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#FFB800"></div> Verdade Parcial</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#4D9EFF"></div> Pânico Injustificado</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#9B5DE5"></div> Inconclusivo</div>
+      <div style="font-size:0.72rem; color: #8888AA; margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:1px; font-family: var(--mono);">Resultado esperado</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#FF2D55"></div> Linha temporal principal</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#00FF88"></div> Alegações por ano e fonte</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#FFB800"></div> Fiabilidade das fontes</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#4D9EFF"></div> Contradições e desacordos</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#9B5DE5"></div> Mudança da narrativa</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -647,16 +688,16 @@ with col_main:
         for afirmacao, resposta, fontes in st.session_state.historico:
             css, emoji, label = classificar_veredito(resposta)
 
-            # Afirmação do utilizador
+            # Tema do utilizador
             st.markdown(
                 f'<div class="bloco-afirmacao">'
-                f'<div class="label-q">▶ Afirmação submetida</div>'
+                f'<div class="label-q">▶ Tema submetido</div>'
                 f'{afirmacao}'
                 f'</div>',
                 unsafe_allow_html=True
             )
 
-            # Card de resultado com veredito
+            # Card de resultado
             st.markdown(
                 f'<div class="card-resultado">'
                 f'<div class="card-resultado-header">'
@@ -691,11 +732,11 @@ with col_main:
         st.markdown("""
         <div class="welcome">
           <div class="welcome-icon">🔍</div>
-          <h2>VERIFICAÇÃO DE FACTOS HISTÓRICOS</h2>
+          <h2>ANÁLISE DE NARRATIVAS HISTÓRICAS</h2>
           <p>
-            Submete uma afirmação, mito ou teoria sobre a história da Internet portuguesa.<br>
-            O <strong>DECEPTIO</strong> cruza documentos reais do <strong>Arquivo.pt</strong>
-            com o conhecimento global da IA para emitir um veredito fundamentado.
+            Introduz um tema e o <strong>DECEPTIO</strong> encontra artigos relevantes no
+            <strong>Arquivo.pt</strong>, extrai alegações, organiza uma timeline e destaca
+            desacordos entre fontes.
           </p>
         </div>
         """, unsafe_allow_html=True)
@@ -706,9 +747,9 @@ with col_main:
 
     with col_in:
         input_val = st.text_input(
-            label            = "Afirmação",
+            label            = "Tema",
             value            = st.session_state.input_actual,
-            placeholder      = "Ex: O Bug do Ano 2000 ia destruir os bancos portugueses...",
+            placeholder      = "Ex: Bug do Ano 2000 em Portugal...",
             label_visibility = "collapsed",
             key              = f"input_{st.session_state.n_input}",
         )
@@ -726,9 +767,9 @@ if analisar and texto_final:
     st.session_state.input_actual = texto_final
 
     with col_main:
-        with st.spinner("🔍 A pesquisar no Arquivo.pt e a auditar com IA..."):
-            resposta, fontes = analisar_afirmacao(
-                afirmacao = texto_final,
+        with st.spinner("🔍 A pesquisar artigos no Arquivo.pt e a construir a análise..."):
+            resposta, fontes = analisar_topico(
+                topico    = texto_final,
                 from_year = from_year if usar_filtro else None,
                 to_year   = to_year   if usar_filtro else None,
                 historico = st.session_state.historico_llm,
@@ -736,9 +777,8 @@ if analisar and texto_final:
 
     # Atualiza contadores
     st.session_state.total_analisados += 1
-    css, _, _ = classificar_veredito(resposta)
-    if css == "v-mito":
-        st.session_state.total_mitos += 1
+    if fontes:
+        st.session_state.total_mitos += len(fontes)
 
     st.session_state.historico.append((texto_final, resposta, fontes))
     st.session_state.historico_llm.append({"role": "user",  "content": texto_final})
@@ -749,4 +789,4 @@ if analisar and texto_final:
     st.rerun()
 
 elif analisar:
-    st.warning("✏️ Escreve uma afirmação para analisar.")
+    st.warning("✏️ Escreve um tema para analisar.")

@@ -32,6 +32,7 @@ import json
 import time
 import concurrent.futures
 import requests
+import tomllib
 from bs4 import BeautifulSoup
 from google import genai
 from google.genai import types as genai_types
@@ -43,26 +44,81 @@ RESULTADOS_QUERY   = 15        # por query → 3 queries = até 45 candidatos
 NUM_DOCS_RERANKED  = 5         # documentos que chegam à Camada 4
 MAX_CHARS_PAGINA   = 2500      # caracteres extraídos por página
 HTTP_TIMEOUT       = 15        # segundos por pedido HTTP
+SEARCH_TIMEOUT     = 45        # Arquivo.pt pode demorar em queries amplas
 
 # Modelos por função
 MODELO_LEVE   = "gemini-2.5-flash-lite"   # C1 e C3: rápido e barato
 MODELO_FORTE  = "gemini-2.5-flash"         # C4: qualidade máxima
 
-FALLBACK_LEVE  = ["gemini-2.5-flash-lite",  "gemini-2.0-flash",  "gemini-1.5-flash"]
-FALLBACK_FORTE = ["gemini-2.5-flash",       "gemini-2.0-flash",  "gemini-1.5-flash"]
+FALLBACK_LEVE  = ["gemini-2.5-flash-lite", "gemini-2.0-flash"]
+FALLBACK_FORTE = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"]
 
 # ── Cliente Gemini ─────────────────────────────────────────────────────────────
 
+def _ler_chave_gemini() -> str:
+    """Lê a chave Gemini de env vars, Streamlit secrets ou .env local."""
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if key:
+        return key
+
+    secrets_path = os.path.join(os.getcwd(), ".streamlit", "secrets.toml")
+    try:
+        with open(secrets_path, "rb") as f:
+            secrets = tomllib.load(f)
+        key = str(secrets.get("GEMINI_API_KEY", "")).strip()
+        if key:
+            return key
+    except FileNotFoundError:
+        pass
+    except Exception:
+        pass
+
+    env_path = os.path.join(os.getcwd(), ".env")
+    try:
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                name, value = line.split("=", 1)
+                if name.strip() == "GEMINI_API_KEY":
+                    return value.strip().strip('"').strip("'")
+    except FileNotFoundError:
+        pass
+    except Exception:
+        pass
+
+    return ""
+
+
 def _cliente() -> tuple:
     """Retorna (cliente, "") ou (None, msg_erro)."""
-    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    key = _ler_chave_gemini()
     if not key:
         return None, (
             "⚠️ **GEMINI_API_KEY não configurada.**\n\n"
-            "```bash\nexport GEMINI_API_KEY='AIzaSy...'\nstreamlit run app.py\n```\n\n"
+            "Configura a chave de uma destas formas:\n\n"
+            "```toml\n# .streamlit/secrets.toml\nGEMINI_API_KEY = \"AIzaSy...\"\n```\n\n"
+            "```bash\n# .env\nGEMINI_API_KEY=AIzaSy...\n```\n\n"
+            "Depois reinicia o Streamlit.\n\n"
             "Chave gratuita em: https://aistudio.google.com/"
         )
     return genai.Client(api_key=key), ""
+
+
+def _erro_quota(err: str) -> bool:
+    err_l = err.lower()
+    return "429" in err or "quota" in err_l or "rate" in err_l or "resource_exhausted" in err_l
+
+
+def _erro_auth(err: str) -> bool:
+    err_l = err.lower()
+    return "403" in err or "api_key" in err_l or "permission_denied" in err_l
+
+
+def _erro_modelo_indisponivel(err: str) -> bool:
+    err_l = err.lower()
+    return "404" in err or "not_found" in err_l or "is not found" in err_l
 
 
 def _gemini(cliente, modelos: list, prompt: str, system: str,
@@ -87,10 +143,12 @@ def _gemini(cliente, modelos: list, prompt: str, system: str,
                 return r.text.strip()
         except Exception as e:
             err = str(e)
-            if "429" in err or "quota" in err.lower():
+            if _erro_quota(err):
                 time.sleep(1)
-            elif "403" in err or "api_key" in err.lower():
+            elif _erro_auth(err):
                 return None   # Erro de auth — inutíl tentar outros modelos
+            elif _erro_modelo_indisponivel(err):
+                print(f"[Gemini] Modelo indisponível: {modelo}")
             # 404 / outros → tenta o próximo
     return None
 
@@ -174,16 +232,30 @@ def _pesquisar(query: str, from_year: str = None, to_year: str = None) -> list[d
         r = requests.get(
             ARQUIVO_URL,
             params  = params,
-            timeout = HTTP_TIMEOUT,
+            timeout = SEARCH_TIMEOUT,
             headers = {"User-Agent": "Deceptio/1.0 (Premio Arquivo.pt 2026)"},
         )
         r.raise_for_status()
         resultados = r.json().get("response_items", [])
-        print(f"[C2] '{query[:35]}' → {len(resultados)} resultados")
+        print(f"[C2] '{query[:35]}' -> {len(resultados)} resultados")
         return resultados
     except requests.Timeout:
-        print(f"[C2] Timeout: '{query[:35]}'")
-        return []
+        print(f"[C2] Timeout: '{query[:35]}' - retry reduzido")
+        try:
+            params["maxItems"] = 5
+            r = requests.get(
+                ARQUIVO_URL,
+                params=params,
+                timeout=SEARCH_TIMEOUT,
+                headers={"User-Agent": "Deceptio/1.0 (Premio Arquivo.pt 2026)"},
+            )
+            r.raise_for_status()
+            resultados = r.json().get("response_items", [])
+            print(f"[C2] Retry '{query[:35]}' -> {len(resultados)} resultados")
+            return resultados
+        except Exception as e:
+            print(f"[C2] Retry falhou ({type(e).__name__}): '{query[:35]}'")
+            return []
     except Exception as e:
         print(f"[C2] Erro ({type(e).__name__}): '{query[:35]}'")
         return []
@@ -237,10 +309,10 @@ def pesquisar_multi_query(queries: list[str],
 
 # ── CAMADA 3: Re-ranking por Relevância para Desinformação ───────────────────
 
-_SYS_RERANK = """És um especialista em verificação de factos e análise de desinformação.
-Recebeste uma afirmação a verificar e uma lista de documentos históricos.
+_SYS_RERANK = """És um especialista em análise de narrativas históricas e verificação de factos.
+Recebeste um tema ou afirmação e uma lista de documentos históricos.
 
-Seleciona os documentos mais úteis para CONFIRMAR OU REFUTAR a afirmação.
+Seleciona os documentos mais úteis para compreender a evolução da narrativa, incluindo documentos que confirmem, refutem, contextualizem ou mostrem desacordos.
 Prioriza:
 1. Documentos que tratem directamente do tema (não apenas mencionem palavras coincidentes)
 2. Documentos que contenham dados, estatísticas ou declarações oficiais relevantes
@@ -300,7 +372,7 @@ def reranking(afirmacao: str, candidatos: list[dict], cliente,
         except Exception as e:
             print(f"[C3] Falha JSON: {e}")
 
-    print(f"[C3] Fallback — usando primeiros {n}")
+    print(f"[C3] Fallback - usando primeiros {n}")
     return candidatos[:n]
 
 
@@ -390,14 +462,14 @@ def construir_contexto(docs: list[dict]) -> tuple[str, list[dict]]:
         if not texto:
             texto = snippet
         if not texto:
-            print(f"[C4a] Documento {i} sem conteúdo — ignorado")
+            print(f"[C4a] Documento {i} sem conteudo - ignorado")
             continue
 
         # Flag Público para dar destaque visual na UI
         is_publico = "publico.pt" in url_orig.lower()
 
         blocos.append(
-            f"[DOCUMENTO {i}]{'  ★ PÚBLICO.PT' if is_publico else ''}\n"
+            f"[DOC {i}]{'  ★ PÚBLICO.PT' if is_publico else ''}\n"
             f"Título: {titulo}\n"
             f"Data de captura: {data}\n"
             f"URL: {url_orig}\n"
@@ -431,7 +503,7 @@ A TUA MISSÃO — segue EXACTAMENTE esta estrutura:
 **Resumo:** 2-3 frases directas a explicar o veredito.
 
 **O que diziam os documentos na época:**
-Cita os documentos [DOCUMENTO N] com a data e o que afirmavam. Se existe discrepância \
+Cita os documentos [DOC N] com a data e o que afirmavam. Se existe discrepância \
 entre diferentes fontes da época, menciona-a.
 
 **O que sabemos hoje (conhecimento global):**
@@ -443,7 +515,7 @@ Frase final de síntese.
 
 REGRAS ABSOLUTAS:
 1. O VEREDITO tem de aparecer na primeira linha, em negrito, no formato exacto acima.
-2. Cita sempre [DOCUMENTO N] quando usas informação de um documento específico.
+2. Cita sempre [DOC N] quando usas informação de um documento específico.
 3. Distingue claramente: "na época dizia-se X" vs "hoje sabemos que Y".
 4. Se os documentos forem insuficientes, diz-o no veredito (INCONCLUSIVO) e explica porquê.
 5. Escreve em português europeu (Portugal). Tom analítico e directo, como um jornalista de investigação."""
@@ -484,6 +556,8 @@ def auditar(afirmacao: str, contexto: str, historico: list[dict], cliente) -> st
     )
 
     ultimo_erro = ""
+    teve_quota = False
+    teve_modelo_indisponivel = False
     for modelo in FALLBACK_FORTE:
         try:
             r = cliente.models.generate_content(
@@ -494,15 +568,194 @@ def auditar(afirmacao: str, contexto: str, historico: list[dict], cliente) -> st
                 return r.text.strip()
         except Exception as e:
             ultimo_erro = str(e)
-            if "429" in ultimo_erro or "quota" in ultimo_erro.lower():
+            if _erro_quota(ultimo_erro):
+                teve_quota = True
                 time.sleep(2)
-            elif "403" in ultimo_erro or "api_key" in ultimo_erro.lower():
+            elif _erro_auth(ultimo_erro):
                 return "⚠️ **Erro de autenticação (403).** Verifica a tua `GEMINI_API_KEY` em https://aistudio.google.com/"
-            # 404 → tenta próximo modelo
+            elif _erro_modelo_indisponivel(ultimo_erro):
+                teve_modelo_indisponivel = True
+                print(f"[C4b] Modelo indisponível: {modelo}")
 
-    if "429" in ultimo_erro or "quota" in ultimo_erro.lower():
+    if teve_quota:
         return "⏳ **Limite de pedidos atingido.** O plano gratuito permite 15 pedidos/minuto. Aguarda 60s."
+    if teve_modelo_indisponivel:
+        return "⚠️ **Modelo Gemini indisponível.** Tenta novamente ou confirma no Google AI Studio quais os modelos activos para a tua chave."
     return f"⚠️ **Erro ao gerar veredito.**\n`{ultimo_erro[:200]}`"
+
+
+# ── Best MVP: análise de narrativa por tema ──────────────────────────────────
+
+_SYS_ANALISE_TOPICO = """Es o DECEPTIO, um analista de narrativas historicas baseado no Arquivo.pt.
+
+Recebes um TEMA introduzido pelo utilizador e documentos historicos reais recolhidos no Arquivo.pt.
+
+A TUA MISSAO e transformar os documentos numa analise exploravel. Segue EXACTAMENTE esta estrutura:
+
+**Tema analisado:** [tema]
+
+**1. Linha temporal principal**
+- Agrupa por ano.
+- Para cada ano, resume as principais alegacoes encontradas e cita [DOC N].
+- Se houver poucos documentos, diz que a linha temporal e parcial.
+
+**2. Alegacoes principais por ano e fonte**
+- Lista as alegacoes centrais.
+- Indica ano, fonte/documento e se a fonte apresenta a alegacao como facto, previsao, opiniao, alerta ou contestacao.
+
+**3. Fiabilidade das fontes**
+- Resume a diversidade de fontes, proximidade temporal, tipo de fonte e sinais de cautela.
+- Nao atribuas uma pontuacao numerica absoluta; usa avaliacoes como "forte", "media", "limitada" ou "incerta".
+
+**4. Contradicoes e desacordos**
+- Identifica pontos em que documentos discordam entre si, mudam de enfase ou apresentam incerteza.
+- Se nao houver contradicoes claras, explica que a amostra nao e suficiente para as confirmar.
+
+**5. Mudanca da narrativa**
+- Explica como a narrativa evolui ao longo do tempo: origem, intensificacao, correcao, normalizacao ou desaparecimento.
+
+**Resumo executivo**
+3 a 5 bullets com a leitura final.
+
+Termina sempre a resposta com a linha:
+FIM_DA_ANALISE
+
+REGRAS ABSOLUTAS:
+1. Cita sempre [DOC N] quando usas informacao de documentos.
+2. Nao inventes fontes nem alegacoes nao presentes no contexto.
+3. Distingue evidencias documentais de inferencias tuas.
+4. Escreve em portugues europeu, com tom analitico e claro.
+5. Se a resposta for longa, privilegia frases compactas em vez de cortar seco."""
+
+
+def analisar_narrativa_topico(topico: str, contexto: str, historico: list[dict], cliente) -> str:
+    """Gera timeline, fiabilidade das fontes, desacordos e mudanca narrativa."""
+    hist = (historico or [])[-6:]
+    conteudos = []
+    for msg in hist:
+        role = "user" if msg.get("role") == "user" else "model"
+        c = msg.get("content", "").strip()
+        if c:
+            conteudos.append(genai_types.Content(
+                role=role,
+                parts=[genai_types.Part(text=c)]
+            ))
+
+    prompt = (
+        f"Tema introduzido pelo utilizador: **{topico}**\n\n"
+        f"Documentos historicos do Arquivo.pt:\n\n"
+        f"{'-'*50}\n{contexto}\n{'-'*50}\n\n"
+        "Extrai as alegacoes principais, organiza-as por ano/fonte e produz a analise completa."
+    )
+    conteudos.append(genai_types.Content(
+        role="user",
+        parts=[genai_types.Part(text=prompt)]
+    ))
+
+    cfg = genai_types.GenerateContentConfig(
+        system_instruction=_SYS_ANALISE_TOPICO,
+        temperature=0.2,
+        max_output_tokens=8192,
+    )
+
+    ultimo_erro = ""
+    teve_quota = False
+    teve_modelo_indisponivel = False
+    for modelo in FALLBACK_FORTE:
+        try:
+            r = cliente.models.generate_content(model=modelo, contents=conteudos, config=cfg)
+            if r.candidates and r.text and r.text.strip():
+                print(f"[MVP] Analise de narrativa gerada via {modelo}")
+                texto = r.text.strip()
+                if "FIM_DA_ANALISE" not in texto:
+                    cfg_continuacao = genai_types.GenerateContentConfig(
+                        system_instruction=_SYS_ANALISE_TOPICO,
+                        temperature=0.2,
+                        max_output_tokens=4096,
+                    )
+                    conteudos_continuacao = conteudos + [
+                        genai_types.Content(
+                            role="model",
+                            parts=[genai_types.Part(text=texto)],
+                        ),
+                        genai_types.Content(
+                            role="user",
+                            parts=[genai_types.Part(
+                                text=(
+                                    "A resposta anterior ficou incompleta. Continua exactamente "
+                                    "a partir do ponto onde parou, sem repetir o que ja foi escrito, "
+                                    "e termina com FIM_DA_ANALISE."
+                                )
+                            )],
+                        ),
+                    ]
+                    r2 = cliente.models.generate_content(
+                        model=modelo,
+                        contents=conteudos_continuacao,
+                        config=cfg_continuacao,
+                    )
+                    if r2.candidates and r2.text and r2.text.strip():
+                        texto = f"{texto.rstrip()}\n\n{r2.text.strip()}"
+                return texto.replace("FIM_DA_ANALISE", "").strip()
+        except Exception as e:
+            ultimo_erro = str(e)
+            if _erro_quota(ultimo_erro):
+                teve_quota = True
+                time.sleep(2)
+            elif _erro_auth(ultimo_erro):
+                return "⚠️ **Erro de autenticação (403).** Verifica a tua `GEMINI_API_KEY` em https://aistudio.google.com/"
+            elif _erro_modelo_indisponivel(ultimo_erro):
+                teve_modelo_indisponivel = True
+                print(f"[MVP] Modelo indisponível: {modelo}")
+
+    if teve_quota:
+        return "⏳ **Limite de pedidos atingido.** O plano gratuito permite 15 pedidos/minuto. Aguarda 60s."
+    if teve_modelo_indisponivel:
+        return "⚠️ **Modelo Gemini indisponível.** Tenta novamente ou confirma no Google AI Studio quais os modelos activos para a tua chave."
+    return f"⚠️ **Erro ao gerar análise.**\n`{ultimo_erro[:200]}`"
+
+
+def analisar_topico(
+    topico: str,
+    from_year: str = None,
+    to_year: str = None,
+    historico: list[dict] = None,
+) -> tuple[str, list[dict]]:
+    """
+    Entrada principal do Best MVP.
+
+    Fluxo:
+        Tema -> artigos relevantes -> alegacoes principais -> agrupamento
+        por ano/fonte -> timeline, fiabilidade, desacordos e mudanca narrativa.
+    """
+    print(f"\n{'='*60}")
+    print(f"[DECEPTIO MVP] Tema: '{topico[:70]}'")
+
+    cliente, err = _cliente()
+    if not cliente:
+        return err, []
+
+    queries = gerar_queries(topico, cliente)
+    candidatos = pesquisar_multi_query(queries, from_year, to_year)
+    if not candidatos:
+        return (
+            "📭 **Nenhum artigo encontrado no Arquivo.pt.**\n\n"
+            "- Reformula o tema com nomes, datas ou termos mais específicos\n"
+            "- Experimenta sem filtro temporal\n"
+            "- O Arquivo.pt pode estar temporariamente indisponível: https://arquivo.pt"
+        ), []
+
+    seleccionados = reranking(topico, candidatos, cliente, n=8)
+    contexto, fontes = construir_contexto(seleccionados)
+    if not fontes:
+        return (
+            "📄 **Artigos encontrados, mas conteúdo não extraível.**\n\n"
+            f"Foram encontrados {len(candidatos)} candidato(s), mas as páginas arquivadas "
+            "podem usar formatos não suportados (Flash, PDF, imagem). Tenta reformular."
+        ), []
+
+    analise = analisar_narrativa_topico(topico, contexto, historico or [], cliente)
+    return analise, fontes
 
 
 # ── Pipeline principal ────────────────────────────────────────────────────────
