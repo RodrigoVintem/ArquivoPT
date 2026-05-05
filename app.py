@@ -13,6 +13,7 @@ Para correr:
 
 import streamlit as st
 import re
+import base64
 from deceptio_rag import analisar_topico
 
 # ── Configuração ──────────────────────────────────────────────────────────────
@@ -710,14 +711,18 @@ with col_main:
             )
 
             # Botão copiar + corpo da resposta
-            resp_js = resposta.replace("`", "\\`").replace("\n", "\\n")
+            resp_b64 = base64.b64encode(resposta.encode("utf-8")).decode("ascii")
             st.markdown(
                 f"""<div style="text-align:right;margin-bottom:0.3rem;">
-                <button class="copy-btn"
-                  onclick="navigator.clipboard.writeText(`{resp_js}`).then(
-                    ()=>{{this.textContent='✓ Copiado';setTimeout(()=>this.textContent='📋 Copiar',2000)}},
-                    ()=>{{this.textContent='Erro'}}
-                  )">📋 Copiar</button></div>""",
+                <button class="copy-btn" data-copy="{resp_b64}"
+                  onclick="
+                    const bytes = Uint8Array.from(atob(this.dataset.copy), c => c.charCodeAt(0));
+                    const text = new TextDecoder().decode(bytes);
+                    navigator.clipboard.writeText(text).then(
+                      () => {{this.textContent='✓ Copiado';setTimeout(() => this.textContent='📋 Copiar',2000)}},
+                      () => {{this.textContent='Erro';setTimeout(() => this.textContent='📋 Copiar',2000)}}
+                    );
+                  ">📋 Copiar</button></div>""",
                 unsafe_allow_html=True
             )
             st.markdown(linkar_docs(resposta, fontes))
