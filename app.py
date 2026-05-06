@@ -2,7 +2,7 @@
 ================================================================================
 DECEPTIO - Interface Web (Streamlit)
 ================================================================================
-Ferramenta de analise de narrativas historicas usando o Arquivo.pt.
+Ferramenta de análise de narrativas históricas usando o Arquivo.pt.
 Prémio Arquivo.pt 2026
 
 Para correr:
@@ -19,8 +19,8 @@ from deceptio_rag import analisar_topico
 # ── Configuração ──────────────────────────────────────────────────────────────
 
 st.set_page_config(
-    page_title = "DECEPTIO - Analise de Narrativas Historicas",
-    page_icon  = "🧭",
+    page_title = "DECEPTIO - Análise de Narrativas Históricas",
+    page_icon  = "🔍",
     layout     = "wide",
     initial_sidebar_state = "expanded",
 )
@@ -55,7 +55,22 @@ html, body, [class*="css"] {
     color: var(--texto) !important;
 }
 #MainMenu, footer, .stDeployButton { display: none !important; }
-[data-testid="collapsedControl"] { opacity: 1 !important; visibility: visible !important; }
+/* ── Botões de Abrir/Fechar Sidebar sempre visíveis ─── */
+[data-testid="collapsedControl"],
+[data-testid="stSidebarCollapseButton"],
+button[kind="header"] {
+    opacity: 1 !important;
+    visibility: visible !important;
+    color: var(--subtexto) !important;
+}
+
+/* Ajuste vertical: manter o botão ligeiramente acima do texto da sidebar */
+[data-testid="collapsedControl"],
+[data-testid="stSidebarCollapseButton"] {
+    position: relative !important;
+    top: 2rem !important;
+    z-index: 1000 !important;
+}
 
 /* ── Scrollbar ─── */
 ::-webkit-scrollbar { width: 4px; }
@@ -71,54 +86,64 @@ html, body, [class*="css"] {
 }
 .header-grid {
     display: flex;
-    align-items: center;
+    align-items: flex-end; 
     justify-content: space-between;
     gap: 1rem;
+    padding-bottom: 0.2rem;
 }
 .logo-area { display: flex; align-items: center; gap: 1.2rem; }
 .logo-icon {
-    width: 52px; height: 52px;
+    width: 78px;             
+    height: 78px;            
     background: var(--vermelho);
-    border-radius: 8px;
+    border-radius: 14px;     
     display: flex; align-items: center; justify-content: center;
-    font-size: 1.6rem;
+    font-size: 2.6rem;       
     flex-shrink: 0;
-    box-shadow: 0 0 20px rgba(255,45,85,0.4);
+    box-shadow: 0 4px 24px rgba(255,45,85,0.45); 
+    transform: translateY(12px);
 }
+.logo-text { transform: translateY(4px); }
 .logo-text h1 {
     font-family: var(--mono) !important;
     font-size: 2.2rem !important;
     font-weight: 700 !important;
     letter-spacing: 6px !important;
     color: var(--texto) !important;
-    margin: 0 !important;
+    margin: 0 0 -4px 0 !important; 
     line-height: 1 !important;
 }
 .logo-text .tagline {
     font-family: var(--mono);
-    font-size: 0.65rem;
+    font-size: 0.85rem;
     color: var(--vermelho);
     letter-spacing: 3px;
     text-transform: uppercase;
-    margin-top: 0.3rem;
+    margin-top: 0 !important; 
 }
 .header-stats {
     display: flex;
-    gap: 1.5rem;
+    gap: 1rem;
     flex-shrink: 0;
+    margin-bottom: -0.4rem; 
 }
 .stat-pill {
     text-align: center;
-    padding: 0.4rem 1rem;
+    padding: 0.6rem 0; 
+    min-width: 110px;  
     border: 1px solid var(--borda);
-    border-radius: 4px;
+    border-radius: 6px;
     background: var(--bg2);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 .stat-num {
     font-family: var(--mono);
-    font-size: 1.1rem;
+    font-size: 1.5rem; 
     font-weight: 700;
     color: var(--verde);
+    line-height: 1.1;
 }
 .stat-label {
     font-size: 0.62rem;
@@ -131,6 +156,14 @@ html, body, [class*="css"] {
 section[data-testid="stSidebar"] {
     background: var(--bg2) !important;
     border-right: 1px solid var(--borda) !important;
+}
+section[data-testid="stSidebar"] div[data-testid="stSidebarContent"] {
+    padding-top: 0 !important;
+    transform: translateY(-2rem);
+}
+section[data-testid="stSidebar"] .block-container {
+    padding-top: 0 !important;
+    margin-top: 0 !important;
 }
 section[data-testid="stSidebar"] * { color: var(--texto) !important; }
 
@@ -158,6 +191,20 @@ section[data-testid="stSidebar"] * { color: var(--texto) !important; }
 }
 
 /* ── Input ─── */
+.stTextInput { margin-bottom: 0 !important; }
+.stTextInput > label { margin-bottom: 0.35rem !important; }
+.stTextInput div[data-baseweb="input"] {
+    min-height: 52px !important;
+    height: 52px !important;
+    background: var(--bg2) !important;
+    border: 1px solid var(--borda2) !important;
+    border-radius: 6px !important;
+    box-shadow: none !important;
+}
+.stTextInput div[data-baseweb="input"] > div {
+    height: 52px !important;
+    box-shadow: none !important;
+}
 .stTextInput > div > div > input {
     background: var(--bg2) !important;
     border: 1px solid var(--borda2) !important;
@@ -165,11 +212,15 @@ section[data-testid="stSidebar"] * { color: var(--texto) !important; }
     color: var(--texto) !important;
     font-family: var(--fonte) !important;
     font-size: 1rem !important;
-    padding: 0.7rem 1rem !important;
+    padding: 0 1rem !important;
+    height: 52px !important; 
+    line-height: 52px !important;
+    box-shadow: none !important;
 }
 .stTextInput > div > div > input:focus {
     border-color: var(--vermelho) !important;
-    box-shadow: 0 0 0 2px rgba(255,45,85,0.15) !important;
+    box-shadow: none !important;
+    outline: none !important;
 }
 .stTextInput > div > div > input::placeholder { color: var(--subtexto) !important; }
 
@@ -181,12 +232,14 @@ button[data-testid="baseButton-primary"] {
     border: none !important;
     border-radius: 6px !important;
     font-family: var(--mono) !important;
-    font-size: 0.65rem !important;
+    font-size: 0.75rem !important;
     font-weight: 700 !important;
-    letter-spacing: 0.5px !important;
-    padding: 0.65rem 0.55rem !important;
-    text-align: center !important;
-    white-space: nowrap !important;
+    letter-spacing: 1px !important;
+    padding: 0 1rem !important;
+    height: 52px !important; 
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
     box-shadow: 0 0 16px rgba(255,45,85,0.35) !important;
     transition: all 0.15s !important;
 }
@@ -227,12 +280,13 @@ hr { border: none !important; border-top: 1px solid var(--borda) !important; mar
     line-height: 1.5;
 }
 .bloco-afirmacao .label-q {
-    font-family: var(--mono);
-    font-size: 0.6rem;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: var(--borda2);
-    margin-bottom: 0.4rem;
+    font-family: var(--fonte);
+    font-size: 0.95rem;
+    letter-spacing: 0.5px;
+    text-transform: none;
+    color: var(--texto);
+    margin-bottom: 0.6rem;
+    font-weight: 600;
 }
 
 /* ── Card de resultado ─── */
@@ -289,11 +343,11 @@ hr { border: none !important; border-top: 1px solid var(--borda) !important; mar
 }
 .fontes-titulo {
     font-family: var(--mono);
-    font-size: 0.6rem;
-    letter-spacing: 2px;
+    font-size: 0.95rem;
+    letter-spacing: 1px;
     text-transform: uppercase;
-    color: var(--subtexto);
-    margin-bottom: 0.6rem;
+    color: var(--texto);
+    margin-bottom: 0.8rem;
 }
 .fonte-row {
     display: flex;
@@ -331,6 +385,7 @@ hr { border: none !important; border-top: 1px solid var(--borda) !important; mar
     text-align: center;
     background: var(--bg2);
     margin: 0.4rem 0 0.75rem;
+    margin-top: -0.04rem;
     position: relative;
     overflow: hidden;
 }
@@ -401,10 +456,10 @@ hr { border: none !important; border-top: 1px solid var(--borda) !important; mar
 
 /* ── Área de input ─── */
 .input-area {
-    border-top: 1px solid var(--borda);
-    padding: 1rem 0 0.3rem;
-    margin-top: 1.5rem;
-    background: var(--bg);
+    padding: 1rem 0 0.3rem !important;
+    margin-top: 0.5rem !important;
+    background: transparent !important; 
+    border-top: none !important;        
 }
 
 /* ── Copiar botão ─── */
@@ -443,29 +498,150 @@ hr { border: none !important; border-top: 1px solid var(--borda) !important; mar
 # ── Session state ─────────────────────────────────────────────────────────────
 
 defaults = {
-    "historico":       [],   # lista de (afirmacao, resultado_dict, fontes)
-    "historico_llm":   [],   # formato Gemini
+    "historico":       [],   
+    "historico_llm":   [],   
     "input_actual":    "",
     "n_input":         0,
     "total_analisados": 0,
     "total_mitos":     0,
+    "idioma":          "pt", # Adicionado pela colega
 }
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── Helpers de Tradução ───────────────────────────────────────────────────────
+
+TEXTOS = {
+    "pt": {
+        "language": "Idioma",
+        "tagline": "Mapa de narrativas históricas · Arquivo.pt × IA",
+        "analysed": "Analisados",
+        "sources": "Fontes",
+        "sidebar_caption": "O DECEPTIO é uma ferramenta para analisar como uma narrativa mudou ao longo do tempo.\n\nPara tal, analisa artigos do Arquivo.pt, extrai alegações e cria timelines. Avalia a fiabilidade das fontes, encontra contradições e desacordos revelando mudanças numa narrativa ao longo do tempo.",
+        "time_filter": "📅 Filtro Temporal",
+        "time_filter_caption": "Procura apenas documentos dentro do período selecionado.",
+        "enable_year_filter": "Ativar procura por anos",
+        "from": "De",
+        "to": "Até",
+        "test_cases": "🧪 Casos de Teste",
+        "test_cases_caption": "Temas históricos para explorar.",
+        "cases": [
+            "Bug do Ano 2000 em Portugal",
+            "Entrada do Euro em Portugal",
+            "EXPO 98 e impacto económico",
+            "Internet em Portugal nos anos 90",
+            "Crise financeira de 2008 nos bancos portugueses",
+            "Ponte Vasco da Gama na imprensa portuguesa",
+            "Gripe A nos media portugueses",
+            "Ensino superior e propinas em Portugal",
+        ],
+        "clear": "🗑️ Limpar análises",
+        "sidebar_footer": "**DECEPTIO** — Candidatura ao Prémio Arquivo.pt 2026\n\nUsa a API do [Arquivo.pt](https://arquivo.pt) e Inteligência Artificial (LLMs) numa arquitetura RAG de 4 camadas. Dá prioridade a fontes `.pt` e textos do [Público](https://publico.pt).",
+        "how_it_works": "⚙ Como Funciona",
+        "c1_title": "Query Expansion",
+        "c1_text": "A IA gera 3 queries otimizadas para a pergunta realizada pelo utilizador e utiliza-as para navegar o Arquivo.pt.",
+        "c2_title": "Retrieval",
+        "c2_text": "Recupera até 45 documentos de diferentes fontes e atribui pontos a cada um baseado na sua relevância. Atribui pontos bónus a fontes <code>.pt</code> e <code>publico.pt</code>.",
+        "c3_title": "Re-ranking",
+        "c3_text": "Com base nas pontuações atribuídas, seleciona os artigos mais relevantes.",
+        "c4_title": "Análise IA",
+        "c4_text": "Extrai alegações, organiza a timeline e identifica desacordos.",
+        "expected": "Resultado esperado",
+        "timeline": "Linha temporal principal",
+        "claims": "Alegações por ano e fonte",
+        "reliability": "Fiabilidade das fontes",
+        "disagreements": "Contradições e desacordos",
+        "change": "Mudança da narrativa",
+        "analysis_badge": "ANÁLISE DE NARRATIVA",
+        "submitted_topic": "Tema submetido",
+        "copy": "📋 Copiar",
+        "copied": "✓ Copiado",
+        "copy_error": "Erro",
+        "archive_sources": "📁 Fontes do Arquivo.pt",
+        "welcome_title": "ANÁLISE DE NARRATIVAS HISTÓRICAS",
+        "welcome_text": "Introduz um tema e o <strong>DECEPTIO</strong> encontra artigos relevantes no <strong>Arquivo.pt</strong>, extrai alegações, organiza uma timeline e destaca desacordos entre fontes.",
+        "topic_label": "Tema",
+        "topic_placeholder": "Ex: Bug do Ano 2000 em Portugal...",
+        "analyse": "ANALISAR",
+        "spinner": "🔍 A pesquisar artigos no Arquivo.pt e a construir a análise...",
+        "empty_warning": "✏️ Escreve um tema para analisar.",
+    },
+    "en": {
+        "language": "Language",
+        "tagline": "Historical narrative map · Arquivo.pt × AI",
+        "analysed": "Analysed",
+        "sources": "Sources",
+        "sidebar_caption": "DECEPTIO is a tool for analyzing how a narrative changed over time. To do this, it analyzes articles from **Arquivo.pt**, extracts claims and creates timelines. It evaluates source reliability, finds contradictions and disagreements, revealing changes in a narrative over time.",
+        "time_filter": "📅 Time Filter",
+        "time_filter_caption": "Search only for documents within the selected period.",
+        "enable_year_filter": "Enable search by year",
+        "from": "From",
+        "to": "To",
+        "test_cases": "🧪 Test Cases",
+        "test_cases_caption": "Historical topics to explore.",
+        "cases": [
+            "Year 2000 bug in Portugal",
+            "Introduction of the Euro in Portugal",
+            "EXPO 98 and economic impact",
+            "Internet in Portugal in the 1990s",
+            "2008 financial crisis in Portuguese banks",
+            "Vasco da Gama Bridge in the Portuguese press",
+            "Swine flu in Portuguese media",
+            "Higher education and tuition fees in Portugal",
+        ],
+        "clear": "🗑️ Clear analyses",
+        "sidebar_footer": "**DECEPTIO** — Arquivo.pt Award 2026 Application\n\nUses the [Arquivo.pt](https://arquivo.pt) API and Artificial Intelligence (LLMs) in a 4-layer RAG architecture. Prioritizes `.pt` sources and texts from [Público](https://publico.pt).",
+        "how_it_works": "⚙ How It Works",
+        "c1_title": "Query Expansion",
+        "c1_text": "The AI generates 3 optimized queries for the user's question and uses them to navigate Arquivo.pt.",
+        "c2_title": "Retrieval",
+        "c2_text": "Retrieves up to 45 documents from different sources and assigns points to each based on its relevance. Awards bonus points to <code>.pt</code> and <code>publico.pt</code> sources.",
+        "c3_title": "Re-ranking",
+        "c3_text": "Based on the assigned scores, selects the most relevant articles.",
+        "c4_title": "AI Analysis",
+        "c4_text": "Extracts claims, organizes the timeline and identifies disagreements.",
+        "expected": "Expected output",
+        "timeline": "Main timeline",
+        "claims": "Claims by year and source",
+        "reliability": "Source reliability",
+        "disagreements": "Contradictions and disagreements",
+        "change": "Narrative change",
+        "analysis_badge": "NARRATIVE ANALYSIS",
+        "submitted_topic": "Submitted topic",
+        "copy": "📋 Copy",
+        "copied": "✓ Copied",
+        "copy_error": "Error",
+        "archive_sources": "📁 Arquivo.pt Sources",
+        "welcome_title": "HISTORICAL NARRATIVE ANALYSIS",
+        "welcome_text": "Enter a topic and <strong>DECEPTIO</strong> finds relevant articles in <strong>Arquivo.pt</strong>, extracts claims, organizes a timeline, and highlights disagreements between sources.",
+        "topic_label": "Topic",
+        "topic_placeholder": "Ex: Year 2000 bug in Portugal...",
+        "analyse": "ANALYSE",
+        "spinner": "🔍 Searching Arquivo.pt articles and building the analysis...",
+        "empty_warning": "✏️ Write a topic to analyse.",
+    },
+}
+
+def tr(chave: str):
+    return TEXTOS.get(st.session_state.idioma, TEXTOS["pt"]).get(chave, chave)
 
 def classificar_veredito(texto: str) -> tuple[str, str, str]:
-    """
-    Extrai o veredito do texto de resposta e devolve (classe_css, emoji, label).
-    Procura pelo padrão **VEREDITO:** ou variantes no início da resposta.
-    """
-    if "Erro" not in texto and "Limite de pedidos" not in texto:
-        return "v-default", "🧭", "ANÁLISE DE NARRATIVA"
+    if not any(x in texto for x in ["⚠️", "⏳", "📭", "📄", "Erro", "Error", "Limite de pedidos", "Request limit"]):
+        return "v-default", "🧭", tr("analysis_badge")
 
     t = texto.upper()
+    if st.session_state.idioma == "en":
+        if any(x in t for x in ["AUTHENTICATION", "API KEY", "GEMINI_API_KEY"]):
+            return "v-inconcl", "⚠️", "AUTHENTICATION ERROR"
+        if any(x in t for x in ["REQUEST LIMIT", "RATE LIMIT", "QUOTA"]):
+            return "v-inconcl", "⏳", "RATE LIMIT"
+        if any(x in t for x in ["MODEL", "UNAVAILABLE"]):
+            return "v-inconcl", "⚠️", "MODEL UNAVAILABLE"
+        if any(x in t for x in ["NO ARTICLE", "NO DOCUMENT", "NO RESULTS"]):
+            return "v-inconcl", "📭", "NO SOURCES"
+
     if any(x in t for x in ["MITO HISTÓRICO", "MITO HISTORICO", "FALSO", "DESINFORMAÇÃO", "DESINFORMACAO"]):
         return "v-mito",   "🔴", "MITO HISTÓRICO"
     if any(x in t for x in ["PÂNICO INJUSTIFICADO", "PANICO INJUSTIFICADO", "EXAGERADO", "ALARME INJUSTIFICADO"]):
@@ -476,21 +652,18 @@ def classificar_veredito(texto: str) -> tuple[str, str, str]:
         return "v-verdade","🟢", "FACTO CONFIRMADO"
     if any(x in t for x in ["INCONCLUSIVO", "INFORMAÇÃO INSUFICIENTE", "INFORMACAO INSUFICIENTE", "SEM DADOS"]):
         return "v-inconcl","🟣", "INCONCLUSIVO"
-    return "v-default", "🧭", "ANÁLISE DE NARRATIVA"
-
+    return "v-default", "🧭", tr("analysis_badge")
 
 def html_fontes(fontes: list[dict]) -> str:
-    """Constrói o HTML do painel de fontes do Arquivo.pt."""
     if not fontes:
         return ""
-    html = '<div class="fontes-container"><div class="fontes-titulo">📁 Fontes do Arquivo.pt</div>'
+    html = f'<div class="fontes-container"><div class="fontes-titulo">{tr("archive_sources")}</div>'
     for f in fontes:
         link   = f.get("link_arch", "#") or "#"
         titulo = f.get("titulo", "Sem título")[:85]
         data   = f.get("data", "")
         num    = f.get("numero", "")
         url_o  = f.get("url_orig", "")
-        # Destaca fontes do Público
         badge_cls = "publico" if "publico.pt" in url_o.lower() else ""
         html += (
             f'<div class="fonte-row">'
@@ -505,9 +678,7 @@ def html_fontes(fontes: list[dict]) -> str:
     html += '</div>'
     return html
 
-
 def linkar_docs(texto: str, fontes: list[dict]) -> str:
-    """Normaliza referências de fonte para links com o texto único DOC N."""
     links = {str(f.get("numero")): (f.get("link_arch") or "#") for f in fontes}
 
     def link(n: str) -> str:
@@ -522,36 +693,38 @@ def linkar_docs(texto: str, fontes: list[dict]) -> str:
             return m.group(0)
         return ", ".join(link(n) for n in nums)
 
-    # [DOC 1, DOC 2], [DOC 1, 2], [DOCS 1 e 2]
-    texto = re.sub(
-        r"\[\s*((?:DOC(?:UMENTO)?S?\s*:?\s*)?\d+(?:\s*(?:,|;|e|and)\s*(?:DOC(?:UMENTO)?S?\s*:?\s*)?\d+)+)\s*\](?!\()",
-        sub_lista,
-        texto,
-        flags=re.IGNORECASE,
-    )
+    texto = re.sub(r"\[\s*((?:DOC(?:UMENTO)?S?\s*:?\s*)?\d+(?:\s*(?:,|;|e|and)\s*(?:DOC(?:UMENTO)?S?\s*:?\s*)?\d+)+)\s*\](?!\()", sub_lista, texto, flags=re.IGNORECASE)
+    texto = re.sub(r"\[\[\s*DOC(?:UMENTO)?\s*:?\s*(\d+)\s*\]\](?!\()", sub_ref, texto, flags=re.IGNORECASE)
+    texto = re.sub(r"\[\s*DOC(?:UMENTO)?\s*:?\s*(\d+)\s*\](?!\()", sub_ref, texto, flags=re.IGNORECASE)
+    return re.sub(r"(?<!\[)\bDOC(?:UMENTO)?\s*:?\s*(\d+)\b(?!\]\()", sub_ref, texto, flags=re.IGNORECASE)
 
-    # [DOC 1], [DOCUMENTO: 1], [[DOC 1]]
-    texto = re.sub(
-        r"\[\[\s*DOC(?:UMENTO)?\s*:?\s*(\d+)\s*\]\](?!\()",
-        sub_ref,
-        texto,
-        flags=re.IGNORECASE,
-    )
-    texto = re.sub(
-        r"\[\s*DOC(?:UMENTO)?\s*:?\s*(\d+)\s*\](?!\()",
-        sub_ref,
-        texto,
-        flags=re.IGNORECASE,
-    )
-
-    # Plain DOC 1, while avoiding already linked markdown text: [DOC 1](...)
-    return re.sub(
-        r"(?<!\[)\bDOC(?:UMENTO)?\s*:?\s*(\d+)\b(?!\]\()",
-        sub_ref,
-        texto,
-        flags=re.IGNORECASE,
-    )
-
+def colorir_titulos(texto: str) -> str:
+    # 1. Vermelho
+    texto = re.sub(r"\*?\*?1\. Linha temporal principal\*?\*?", r"<h4 style='color: var(--vermelho); margin-top: 1.5rem;'>1. Linha temporal principal</h4>", texto)
+    # EN version
+    texto = re.sub(r"\*?\*?1\. Main timeline\*?\*?", r"<h4 style='color: var(--vermelho); margin-top: 1.5rem;'>1. Main timeline</h4>", texto)
+    
+    # 2. Verde
+    texto = re.sub(r"\*?\*?2\. Alega[cç][oõ]es principais.*\*\*?", r"<h4 style='color: var(--verde); margin-top: 1.5rem;'>2. Alegações por ano e fonte</h4>", texto)
+    # EN version
+    texto = re.sub(r"\*?\*?2\. Claims by year and source.*\*\*?", r"<h4 style='color: var(--verde); margin-top: 1.5rem;'>2. Claims by year and source</h4>", texto)
+    
+    # 3. Amarelo
+    texto = re.sub(r"\*?\*?3\. Fiabilidade das fontes\*?\*?", r"<h4 style='color: var(--amarelo); margin-top: 1.5rem;'>3. Fiabilidade das fontes</h4>", texto)
+    # EN version
+    texto = re.sub(r"\*?\*?3\. Source reliability\*?\*?", r"<h4 style='color: var(--amarelo); margin-top: 1.5rem;'>3. Source reliability</h4>", texto)
+    
+    # 4. Azul
+    texto = re.sub(r"\*?\*?4\. Contradi[cç][oõ]es e desacordos\*?\*?", r"<h4 style='color: var(--azul); margin-top: 1.5rem;'>4. Contradições e desacordos</h4>", texto)
+    # EN version
+    texto = re.sub(r"\*?\*?4\. Contradictions and disagreements\*?\*?", r"<h4 style='color: var(--azul); margin-top: 1.5rem;'>4. Contradictions and disagreements</h4>", texto)
+    
+    # 5. Roxo
+    texto = re.sub(r"\*?\*?5\. Mudan[cç]a da narrativa\*?\*?", r"<h4 style='color: var(--roxo); margin-top: 1.5rem;'>5. Mudança da narrativa</h4>", texto)
+    # EN version
+    texto = re.sub(r"\*?\*?5\. Narrative change\*?\*?", r"<h4 style='color: var(--roxo); margin-top: 1.5rem;'>5. Narrative change</h4>", texto)
+    
+    return texto
 
 # ── Cabeçalho ─────────────────────────────────────────────────────────────────
 
@@ -565,17 +738,17 @@ st.markdown(f"""
       <div class="logo-icon">🔍</div>
       <div class="logo-text">
         <h1>DECEPTIO</h1>
-        <div class="tagline">Mapa de narrativas históricas · Arquivo.pt × IA</div>
+        <div class="tagline">{tr("tagline")}</div>
       </div>
     </div>
     <div class="header-stats">
       <div class="stat-pill">
         <div class="stat-num">{n_analisados}</div>
-        <div class="stat-label">Analisados</div>
+        <div class="stat-label">{tr("analysed")}</div>
       </div>
       <div class="stat-pill">
         <div class="stat-num" style="color:var(--vermelho)">{n_mitos}</div>
-        <div class="stat-label">Fontes</div>
+        <div class="stat-label">{tr("sources")}</div>
       </div>
     </div>
   </div>
@@ -586,39 +759,37 @@ st.markdown(f"""
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.markdown("### 🔍 DECEPTIO")
-    st.caption(
-        "Ferramenta para analisar como um tema mudou ao longo do tempo. "
-        "Encontra artigos no **Arquivo.pt**, extrai alegações e mostra "
-        "timeline, fiabilidade das fontes, desacordos e mudança narrativa."
+    st.markdown("## 🔍 DECEPTIO")
+    st.radio(
+        tr("language"),
+        options=["pt", "en"],
+        format_func=lambda x: "Português" if x == "pt" else "English",
+        key="idioma",
+        horizontal=True,
     )
+    st.markdown(f"""
+    <div style="text-align: left; font-size: 0.9rem; line-height: 1.6; color: #8888AA; margin-top: 0.5rem;">
+      <p>{tr("sidebar_caption")}</p>
+    </div>
+    """, unsafe_allow_html=True)
     st.markdown("---")
 
-    st.markdown("#### 📅 Filtro Temporal")
-    st.caption("Limita os documentos a um período histórico.")
-    usar_filtro = st.checkbox("Ativar filtro por anos", value=False)
+    st.markdown(f"#### {tr('time_filter')}")
+    st.caption(tr("time_filter_caption"))
+    usar_filtro = st.checkbox(tr("enable_year_filter"), value=False)
     from_year, to_year = None, None
     if usar_filtro:
         c1, c2 = st.columns(2)
         with c1:
-            from_year = str(st.number_input("De", min_value=1996, max_value=2025, value=1998, step=1))
+            from_year = str(st.number_input(tr("from"), min_value=1996, max_value=2025, value=1998, step=1))
         with c2:
-            to_year   = str(st.number_input("Até", min_value=1996, max_value=2025, value=2005, step=1))
+            to_year   = str(st.number_input(tr("to"), min_value=1996, max_value=2025, value=2005, step=1))
 
     st.markdown("---")
-    st.markdown("#### 🧪 Casos de Teste")
-    st.caption("Temas históricos para explorar.")
+    st.markdown(f"#### {tr('test_cases')}")
+    st.caption(tr("test_cases_caption"))
 
-    casos = [
-        "Bug do Ano 2000 em Portugal",
-        "Entrada do Euro em Portugal",
-        "EXPO 98 e impacto económico",
-        "Internet em Portugal nos anos 90",
-        "Crise financeira de 2008 nos bancos portugueses",
-        "Ponte Vasco da Gama na imprensa portuguesa",
-        "Gripe A nos media portugueses",
-        "Ensino superior e propinas em Portugal",
-    ]
+    casos = tr("cases")
 
     for i, caso in enumerate(casos):
         if st.button(f"🧪 {caso[:50]}…", key=f"caso_{i}"):
@@ -627,7 +798,7 @@ with st.sidebar:
             st.rerun()
 
     st.markdown("---")
-    if st.button("🗑️ Limpar análises", use_container_width=True):
+    if st.button(tr("clear"), use_container_width=True):
         st.session_state.historico      = []
         st.session_state.historico_llm  = []
         st.session_state.input_actual   = ""
@@ -636,11 +807,7 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.caption(
-        "**DECEPTIO** — Prémio Arquivo.pt 2026\n\n"
-        "Usa a API do [Arquivo.pt](https://arquivo.pt) e Google Gemini "
-        "com RAG de 4 camadas. Dá prioridade a fontes `.pt` e ao [Público](https://publico.pt)."
-    )
+    st.caption(tr("sidebar_footer"))
 
 
 # ── Layout principal ──────────────────────────────────────────────────────────
@@ -650,35 +817,35 @@ col_main, col_side = st.columns([3, 1])
 # ── Painel lateral de instruções ──────────────────────────────────────────────
 
 with col_side:
-    st.markdown("""
+    st.markdown(f"""
     <div class="painel-info">
-      <h4>⚙ Como Funciona</h4>
+      <h4>{tr("how_it_works")}</h4>
 
       <div class="step">
         <span class="step-num">C1</span>
-        <p><strong>Query Expansion</strong><br>O Gemini gera 3 queries optimizadas para o Arquivo.pt.</p>
+        <p><strong>{tr("c1_title")}</strong><br>{tr("c1_text")}</p>
       </div>
       <div class="step">
         <span class="step-num">C2</span>
-        <p><strong>Retrieval</strong><br>Recupera até 45 documentos de fontes <code>.pt</code> e <code>publico.pt</code>.</p>
+        <p><strong>{tr("c2_title")}</strong><br>{tr("c2_text")}</p>
       </div>
       <div class="step">
         <span class="step-num">C3</span>
-        <p><strong>Re-ranking</strong><br>Seleciona os artigos mais relevantes para o tema.</p>
+        <p><strong>{tr("c3_title")}</strong><br>{tr("c3_text")}</p>
       </div>
       <div class="step">
         <span class="step-num">C4</span>
-        <p><strong>Análise IA</strong><br>Extrai alegações, organiza a timeline e identifica desacordos.</p>
+        <p><strong>{tr("c4_title")}</strong><br>{tr("c4_text")}</p>
       </div>
 
       <hr style="border-color: #2A2A38; margin: 0.8rem 0;">
 
-      <div style="font-size:0.72rem; color: #8888AA; margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:1px; font-family: var(--mono);">Resultado esperado</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#FF2D55"></div> Linha temporal principal</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#00FF88"></div> Alegações por ano e fonte</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#FFB800"></div> Fiabilidade das fontes</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#4D9EFF"></div> Contradições e desacordos</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#9B5DE5"></div> Mudança da narrativa</div>
+      <div style="font-size:0.72rem; color: #8888AA; margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:1px; font-family: var(--mono);">{tr("expected")}</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#FF2D55"></div> {tr("timeline")}</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#00FF88"></div> {tr("claims")}</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#FFB800"></div> {tr("reliability")}</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#4D9EFF"></div> {tr("disagreements")}</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#9B5DE5"></div> {tr("change")}</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -694,41 +861,41 @@ with col_main:
             # Tema do utilizador
             st.markdown(
                 f'<div class="bloco-afirmacao">'
-                f'<div class="label-q">▶ Tema submetido</div>'
-                f'{afirmacao}'
+                f'<div class="label-q">{tr("submitted_topic")}</div>'
+                f'<div style="font-size: 1rem; color: var(--texto); display: flex; align-items: center; gap: 0.5rem;">'
+                f'<span style="color: var(--vermelho);">▶</span> {afirmacao}'
+                f'</div>'
                 f'</div>',
                 unsafe_allow_html=True
             )
 
-            # Card de resultado
-            st.markdown(
-                f'<div class="card-resultado">'
-                f'<div class="card-resultado-header">'
-                f'<span class="veredito {css}">{emoji} {label}</span>'
-                f'<span style="font-family:var(--mono);font-size:0.7rem;color:var(--subtexto);margin-left:auto;">'
-                f'DECEPTIO · Arquivo.pt</span>'
-                f'</div>'
-                f'<div class="card-resultado-body">',
-                unsafe_allow_html=True
-            )
-
-            # Botão copiar + corpo da resposta
             resp_b64 = base64.b64encode(resposta.encode("utf-8")).decode("ascii")
-            st.markdown(
-                f"""<div style="text-align:right;margin-bottom:0.3rem;">
-                <button class="copy-btn" data-copy="{resp_b64}"
-                  onclick="
-                    const bytes = Uint8Array.from(atob(this.dataset.copy), c => c.charCodeAt(0));
-                    const text = new TextDecoder().decode(bytes);
-                    navigator.clipboard.writeText(text).then(
-                      () => {{this.textContent='✓ Copiado';setTimeout(() => this.textContent='📋 Copiar',2000)}},
-                      () => {{this.textContent='Erro';setTimeout(() => this.textContent='📋 Copiar',2000)}}
-                    );
-                  ">📋 Copiar</button></div>""",
-                unsafe_allow_html=True
-            )
-            st.markdown(linkar_docs(resposta, fontes))
-            st.markdown("</div></div>", unsafe_allow_html=True)
+            
+            bloco_completo = f"""
+<div class="card-resultado">
+    <div class="card-resultado-header">
+        <span class="veredito {css}">{emoji} {label}</span>
+        <span style="font-family:var(--mono);font-size:0.7rem;color:var(--subtexto);margin-left:auto;">DECEPTIO · Arquivo.pt</span>
+    </div>
+    <div class="card-resultado-body">
+        <div style="text-align:right;margin-bottom:0.5rem;">
+            <button class="copy-btn" data-copy="{resp_b64}"
+              onclick="
+                const bytes = Uint8Array.from(atob(this.dataset.copy), c => c.charCodeAt(0));
+                const text = new TextDecoder().decode(bytes);
+                navigator.clipboard.writeText(text).then(
+                  () => {{this.textContent='{tr("copied")}';setTimeout(() => this.textContent='{tr("copy")}',2000)}},
+                  () => {{this.textContent='{tr("copy_error")}';setTimeout(() => this.textContent='{tr("copy")}',2000)}}
+                );
+              ">📋 {tr("copy")}</button>
+        </div>
+
+{linkar_docs(colorir_titulos(resposta), fontes)}
+
+    </div>
+</div>
+"""
+            st.markdown(bloco_completo, unsafe_allow_html=True)
 
             # Fontes
             st.markdown(html_fontes(fontes), unsafe_allow_html=True)
@@ -736,15 +903,11 @@ with col_main:
 
     else:
         # Ecrã de boas-vindas
-        st.markdown("""
+        st.markdown(f"""
         <div class="welcome">
           <div class="welcome-icon">🔍</div>
-          <h2>ANÁLISE DE NARRATIVAS HISTÓRICAS</h2>
-          <p>
-            Introduz um tema e o <strong>DECEPTIO</strong> encontra artigos relevantes no
-            <strong>Arquivo.pt</strong>, extrai alegações, organiza uma timeline e destaca
-            desacordos entre fontes.
-          </p>
+          <h2>{tr("welcome_title")}</h2>
+          <p>{tr("welcome_text")}</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -754,14 +917,14 @@ with col_main:
 
     with col_in:
         input_val = st.text_input(
-            label            = "Tema",
+            label            = tr("topic_label"),
             value            = st.session_state.input_actual,
-            placeholder      = "Ex: Bug do Ano 2000 em Portugal...",
+            placeholder      = tr("topic_placeholder"),
             label_visibility = "collapsed",
             key              = f"input_{st.session_state.n_input}",
         )
     with col_btn:
-        analisar = st.button("ANALISAR", use_container_width=True, type="primary")
+        analisar = st.button(tr("analyse"), use_container_width=True, type="primary")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -774,12 +937,13 @@ if analisar and texto_final:
     st.session_state.input_actual = texto_final
 
     with col_main:
-        with st.spinner("🔍 A pesquisar artigos no Arquivo.pt e a construir a análise..."):
+        with st.spinner(tr("spinner")):
             resposta, fontes = analisar_topico(
                 topico    = texto_final,
                 from_year = from_year if usar_filtro else None,
                 to_year   = to_year   if usar_filtro else None,
                 historico = st.session_state.historico_llm,
+                idioma    = st.session_state.idioma,
             )
 
     # Atualiza contadores
@@ -796,4 +960,4 @@ if analisar and texto_final:
     st.rerun()
 
 elif analisar:
-    st.warning("✏️ Escreve um tema para analisar.")
+    st.warning(tr("empty_warning"))
