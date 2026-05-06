@@ -522,6 +522,18 @@ hr { border: none !important; border-top: 1px solid var(--borda) !important; mar
     color: var(--vermelho);
     font-family: var(--mono);
 }
+.claim-resposta {
+    margin: 0.55rem 0 0.75rem;
+    padding: 0.68rem 0.8rem;
+    border: 1px solid var(--borda);
+    border-left: 3px solid var(--verde);
+    border-radius: 5px;
+    background: rgba(0,255,136,0.035);
+    line-height: 1.65;
+}
+.claim-resposta::before {
+    color: var(--verde);
+}
 .ano-resposta {
     display: inline-block;
     margin: 0.9rem 0 0.25rem;
@@ -533,6 +545,13 @@ hr { border: none !important; border-top: 1px solid var(--borda) !important; mar
     font-family: var(--mono);
     font-size: 0.78rem;
     font-weight: 700;
+}
+.ano-claims {
+    display: block;
+    width: fit-content;
+    margin: 1.2rem 0 0.55rem;
+    color: var(--verde);
+    border-color: rgba(0,255,136,0.35);
 }
 .doc-link {
     color: var(--azul) !important;
@@ -789,6 +808,7 @@ def formatar_resposta_html(texto: str, fontes: list[dict]) -> str:
         if len(txt) >= 2 and txt[0] == txt[-1] and txt[0] in {"'", '"'}:
             txt = txt[1:-1].strip()
         txt = txt.replace("\r\n", "\n").replace("\r", "\n")
+        txt = re.sub(r"</?div[^>]*>", "", txt, flags=re.IGNORECASE)
         txt = re.sub(r"\s+-\s+(?=(?:\d{4}:|[A-ZÁÉÍÓÚÂÊÔÃÕÇ]))", "\n- ", txt)
         txt = re.sub(r"\s+\*\s+(?=(?:\d{4}:|[A-ZÁÉÍÓÚÂÊÔÃÕÇ]))", "\n* ", txt)
         txt = re.sub(r"(?<!\n)(\*\*?[1-5]\.\s*)", r"\n\1", txt)
@@ -892,17 +912,20 @@ def formatar_resposta_html(texto: str, fontes: list[dict]) -> str:
         ano_match = re.match(r"^((?:19|20)\d{2}):\s*(.*)$", linha)
         if ano_match:
             ano, resto = ano_match.groups()
-            partes.append(f'<div class="ano-resposta">{ano}</div>')
+            classe_ano = "ano-resposta ano-claims" if secao_atual == 2 else "ano-resposta"
+            classe_item = "bullet-resposta claim-resposta" if secao_atual == 2 else "bullet-resposta"
+            partes.append(f'<div class="{classe_ano}">{ano}</div>')
             if resto.strip():
-                partes.append(f'<div class="bullet-resposta"><div>{linkificar_docs(resto.strip())}</div></div>')
+                partes.append(f'<div class="{classe_item}"><div>{linkificar_docs(resto.strip())}</div></div>')
             continue
 
         if re.match(r"^[-•*]\s+", linha):
             conteudo = re.sub(r"^[-•*]\s+", "", linha).strip()
             conteudo = re.sub(r"^\*+|\*+$", "", conteudo).strip()
-            partes.append(f'<div class="bullet-resposta"><div>{linkificar_docs(conteudo)}</div></div>')
+            classe_item = "bullet-resposta claim-resposta" if secao_atual == 2 else "bullet-resposta"
+            partes.append(f'<div class="{classe_item}"><div>{linkificar_docs(conteudo)}</div></div>')
         elif secao_atual == 2 and linha:
-            partes.append(f'<div class="bullet-resposta"><div>{linkificar_docs(linha)}</div></div>')
+            partes.append(f'<div class="bullet-resposta claim-resposta"><div>{linkificar_docs(linha)}</div></div>')
         else:
             partes.append(f'<div class="paragrafo-resposta">{linkificar_docs(linha)}</div>')
     return "\n".join(partes)
@@ -1051,32 +1074,33 @@ with col_main:
             )
 
             resp_b64 = base64.b64encode(resposta.encode("utf-8")).decode("ascii")
+            resposta_formatada = formatar_resposta_html(resposta, fontes)
             
-            bloco_completo = f"""
-<div class="card-resultado">
-    <div class="card-resultado-header">
-        <span class="veredito {css}">{emoji} {label}</span>
-        <span style="font-family:var(--mono);font-size:0.7rem;color:var(--subtexto);margin-left:auto;">DECEPTIO · Arquivo.pt</span>
-    </div>
-    <div class="card-resultado-body">
-        <div style="text-align:right;margin-bottom:0.5rem;">
-            <button class="copy-btn" data-copy="{resp_b64}"
-              onclick="
-                const bytes = Uint8Array.from(atob(this.dataset.copy), c => c.charCodeAt(0));
-                const text = new TextDecoder().decode(bytes);
-                navigator.clipboard.writeText(text).then(
-                  () => {{this.textContent='{tr("copied")}';setTimeout(() => this.textContent='{tr("copy")}',2000)}},
-                  () => {{this.textContent='{tr("copy_error")}';setTimeout(() => this.textContent='{tr("copy")}',2000)}}
-                                );
-                            ">{tr("copy")}</button>
-        </div>
-
-{formatar_resposta_html(resposta, fontes)}
-
-    </div>
-</div>
-"""
-            st.markdown(bloco_completo, unsafe_allow_html=True)
+            st.markdown(
+                f"""
+                <div class="card-resultado">
+                  <div class="card-resultado-header">
+                    <span class="veredito {css}">{emoji} {label}</span>
+                    <span style="font-family:var(--mono);font-size:0.7rem;color:var(--subtexto);margin-left:auto;">DECEPTIO · Arquivo.pt</span>
+                  </div>
+                  <div class="card-resultado-body">
+                    <div style="text-align:right;margin-bottom:0.5rem;">
+                      <button class="copy-btn" data-copy="{resp_b64}"
+                        onclick="
+                          const bytes = Uint8Array.from(atob(this.dataset.copy), c => c.charCodeAt(0));
+                          const text = new TextDecoder().decode(bytes);
+                          navigator.clipboard.writeText(text).then(
+                            () => {{this.textContent='{tr("copied")}';setTimeout(() => this.textContent='{tr("copy")}',2000)}},
+                            () => {{this.textContent='{tr("copy_error")}';setTimeout(() => this.textContent='{tr("copy")}',2000)}}
+                          );
+                        ">{tr("copy")}</button>
+                    </div>
+                    {resposta_formatada}
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
             # Fontes
             st.markdown(html_fontes(fontes), unsafe_allow_html=True)
