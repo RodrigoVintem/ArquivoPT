@@ -53,6 +53,64 @@ MODELO_FORTE  = "gemini-2.5-flash"         # C4: qualidade máxima
 FALLBACK_LEVE  = ["gemini-2.5-flash-lite", "gemini-2.0-flash"]
 FALLBACK_FORTE = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-flash-lite"]
 
+ERROS = {
+    "pt": {
+        "auth": "⚠️ **Erro de autenticação (403).** Verifica a tua `GEMINI_API_KEY` em https://aistudio.google.com/",
+        "quota": "⏳ **Limite de pedidos atingido.** O plano gratuito permite 15 pedidos/minuto. Aguarda 60s.",
+        "model": "⚠️ **Modelo Gemini indisponível.** Tenta novamente ou confirma no Google AI Studio quais os modelos activos para a tua chave.",
+        "analysis": "⚠️ **Erro ao gerar análise.**",
+        "no_key": (
+            "⚠️ **GEMINI_API_KEY não configurada.**\n\n"
+            "Configura a chave de uma destas formas:\n\n"
+            "```toml\n# .streamlit/secrets.toml\nGEMINI_API_KEY = \"AIzaSy...\"\n```\n\n"
+            "```bash\n# .env\nGEMINI_API_KEY=AIzaSy...\n```\n\n"
+            "Depois reinicia o Streamlit.\n\n"
+            "Chave gratuita em: https://aistudio.google.com/"
+        ),
+        "no_articles": (
+            "📭 **Nenhum artigo encontrado no Arquivo.pt.**\n\n"
+            "- Reformula o tema com nomes, datas ou termos mais específicos\n"
+            "- Experimenta sem filtro temporal\n"
+            "- O Arquivo.pt pode estar temporariamente indisponível: https://arquivo.pt"
+        ),
+        "no_content": (
+            "📄 **Artigos encontrados, mas conteúdo não extraível.**\n\n"
+            "Foram encontrados {n} candidato(s), mas as páginas arquivadas "
+            "podem usar formatos não suportados (Flash, PDF, imagem). Tenta reformular."
+        ),
+    },
+    "en": {
+        "auth": "⚠️ **Authentication error (403).** Check your `GEMINI_API_KEY` at https://aistudio.google.com/",
+        "quota": "⏳ **Request limit reached.** The free plan allows 15 requests/minute. Wait 60s and try again.",
+        "model": "⚠️ **Gemini model unavailable.** Try again or confirm in Google AI Studio which models are active for your key.",
+        "analysis": "⚠️ **Error generating analysis.**",
+        "no_key": (
+            "⚠️ **GEMINI_API_KEY is not configured.**\n\n"
+            "Configure the key in one of these ways:\n\n"
+            "```toml\n# .streamlit/secrets.toml\nGEMINI_API_KEY = \"AIzaSy...\"\n```\n\n"
+            "```bash\n# .env\nGEMINI_API_KEY=AIzaSy...\n```\n\n"
+            "Then restart Streamlit.\n\n"
+            "Free key: https://aistudio.google.com/"
+        ),
+        "no_articles": (
+            "📭 **No articles found in Arquivo.pt.**\n\n"
+            "- Rephrase the topic with more specific names, dates, or terms\n"
+            "- Try without a time filter\n"
+            "- Arquivo.pt may be temporarily unavailable: https://arquivo.pt"
+        ),
+        "no_content": (
+            "📄 **Articles were found, but content could not be extracted.**\n\n"
+            "{n} candidate(s) were found, but the archived pages may use unsupported "
+            "formats (Flash, PDF, image). Try rephrasing."
+        ),
+    },
+}
+
+
+def _txt(idioma: str, chave: str, **kwargs) -> str:
+    texto = ERROS.get(idioma, ERROS["pt"]).get(chave, chave)
+    return texto.format(**kwargs) if kwargs else texto
+
 # ── Cliente Gemini ─────────────────────────────────────────────────────────────
 
 def _ler_chave_gemini() -> str:
@@ -91,18 +149,11 @@ def _ler_chave_gemini() -> str:
     return ""
 
 
-def _cliente() -> tuple:
+def _cliente(idioma: str = "pt") -> tuple:
     """Retorna (cliente, "") ou (None, msg_erro)."""
     key = _ler_chave_gemini()
     if not key:
-        return None, (
-            "⚠️ **GEMINI_API_KEY não configurada.**\n\n"
-            "Configura a chave de uma destas formas:\n\n"
-            "```toml\n# .streamlit/secrets.toml\nGEMINI_API_KEY = \"AIzaSy...\"\n```\n\n"
-            "```bash\n# .env\nGEMINI_API_KEY=AIzaSy...\n```\n\n"
-            "Depois reinicia o Streamlit.\n\n"
-            "Chave gratuita em: https://aistudio.google.com/"
-        )
+        return None, _txt(idioma, "no_key")
     return genai.Client(api_key=key), ""
 
 
@@ -628,7 +679,13 @@ REGRAS ABSOLUTAS:
 5. Se a resposta for longa, privilegia frases compactas em vez de cortar seco."""
 
 
-def analisar_narrativa_topico(topico: str, contexto: str, historico: list[dict], cliente) -> str:
+def analisar_narrativa_topico(
+    topico: str,
+    contexto: str,
+    historico: list[dict],
+    cliente,
+    idioma: str = "pt",
+) -> str:
     """Gera timeline, fiabilidade das fontes, desacordos e mudanca narrativa."""
     hist = (historico or [])[-6:]
     conteudos = []
@@ -641,19 +698,30 @@ def analisar_narrativa_topico(topico: str, contexto: str, historico: list[dict],
                 parts=[genai_types.Part(text=c)]
             ))
 
-    prompt = (
-        f"Tema introduzido pelo utilizador: **{topico}**\n\n"
-        f"Documentos historicos do Arquivo.pt:\n\n"
-        f"{'-'*50}\n{contexto}\n{'-'*50}\n\n"
-        "Extrai as alegacoes principais, organiza-as por ano/fonte e produz a analise completa."
-    )
+    if idioma == "en":
+        prompt = (
+            f"User topic: **{topico}**\n\n"
+            f"Historical documents from Arquivo.pt:\n\n"
+            f"{'-'*50}\n{contexto}\n{'-'*50}\n\n"
+            "Extract the main claims, organise them by year/source, and produce the full analysis. "
+            "Write the entire answer in English."
+        )
+        system = _SYS_ANALISE_TOPICO + "\n\nLANGUAGE RULE: Write the entire final answer in English."
+    else:
+        prompt = (
+            f"Tema introduzido pelo utilizador: **{topico}**\n\n"
+            f"Documentos historicos do Arquivo.pt:\n\n"
+            f"{'-'*50}\n{contexto}\n{'-'*50}\n\n"
+            "Extrai as alegacoes principais, organiza-as por ano/fonte e produz a analise completa."
+        )
+        system = _SYS_ANALISE_TOPICO + "\n\nREGRA DE IDIOMA: Escreve toda a resposta final em portugues europeu."
     conteudos.append(genai_types.Content(
         role="user",
         parts=[genai_types.Part(text=prompt)]
     ))
 
     cfg = genai_types.GenerateContentConfig(
-        system_instruction=_SYS_ANALISE_TOPICO,
+        system_instruction=system,
         temperature=0.2,
         max_output_tokens=8192,
     )
@@ -669,7 +737,7 @@ def analisar_narrativa_topico(topico: str, contexto: str, historico: list[dict],
                 texto = r.text.strip()
                 if "FIM_DA_ANALISE" not in texto:
                     cfg_continuacao = genai_types.GenerateContentConfig(
-                        system_instruction=_SYS_ANALISE_TOPICO,
+                        system_instruction=system,
                         temperature=0.2,
                         max_output_tokens=4096,
                     )
@@ -682,9 +750,18 @@ def analisar_narrativa_topico(topico: str, contexto: str, historico: list[dict],
                             role="user",
                             parts=[genai_types.Part(
                                 text=(
-                                    "A resposta anterior ficou incompleta. Continua exactamente "
-                                    "a partir do ponto onde parou, sem repetir o que ja foi escrito, "
-                                    "e termina com FIM_DA_ANALISE."
+                                    (
+                                        "The previous answer was incomplete. Continue exactly from "
+                                        "where it stopped, without repeating what has already been written, "
+                                        "and end with FIM_DA_ANALISE."
+                                    )
+                                    if idioma == "en"
+                                    else
+                                    (
+                                        "A resposta anterior ficou incompleta. Continua exactamente "
+                                        "a partir do ponto onde parou, sem repetir o que ja foi escrito, "
+                                        "e termina com FIM_DA_ANALISE."
+                                    )
                                 )
                             )],
                         ),
@@ -703,16 +780,16 @@ def analisar_narrativa_topico(topico: str, contexto: str, historico: list[dict],
                 teve_quota = True
                 time.sleep(2)
             elif _erro_auth(ultimo_erro):
-                return "⚠️ **Erro de autenticação (403).** Verifica a tua `GEMINI_API_KEY` em https://aistudio.google.com/"
+                return _txt(idioma, "auth")
             elif _erro_modelo_indisponivel(ultimo_erro):
                 teve_modelo_indisponivel = True
                 print(f"[MVP] Modelo indisponível: {modelo}")
 
     if teve_quota:
-        return "⏳ **Limite de pedidos atingido.** O plano gratuito permite 15 pedidos/minuto. Aguarda 60s."
+        return _txt(idioma, "quota")
     if teve_modelo_indisponivel:
-        return "⚠️ **Modelo Gemini indisponível.** Tenta novamente ou confirma no Google AI Studio quais os modelos activos para a tua chave."
-    return f"⚠️ **Erro ao gerar análise.**\n`{ultimo_erro[:200]}`"
+        return _txt(idioma, "model")
+    return f"{_txt(idioma, 'analysis')}\n`{ultimo_erro[:200]}`"
 
 
 def analisar_topico(
@@ -720,6 +797,7 @@ def analisar_topico(
     from_year: str = None,
     to_year: str = None,
     historico: list[dict] = None,
+    idioma: str = "pt",
 ) -> tuple[str, list[dict]]:
     """
     Entrada principal do Best MVP.
@@ -731,30 +809,21 @@ def analisar_topico(
     print(f"\n{'='*60}")
     print(f"[DECEPTIO MVP] Tema: '{topico[:70]}'")
 
-    cliente, err = _cliente()
+    cliente, err = _cliente(idioma)
     if not cliente:
         return err, []
 
     queries = gerar_queries(topico, cliente)
     candidatos = pesquisar_multi_query(queries, from_year, to_year)
     if not candidatos:
-        return (
-            "📭 **Nenhum artigo encontrado no Arquivo.pt.**\n\n"
-            "- Reformula o tema com nomes, datas ou termos mais específicos\n"
-            "- Experimenta sem filtro temporal\n"
-            "- O Arquivo.pt pode estar temporariamente indisponível: https://arquivo.pt"
-        ), []
+        return _txt(idioma, "no_articles"), []
 
     seleccionados = reranking(topico, candidatos, cliente, n=8)
     contexto, fontes = construir_contexto(seleccionados)
     if not fontes:
-        return (
-            "📄 **Artigos encontrados, mas conteúdo não extraível.**\n\n"
-            f"Foram encontrados {len(candidatos)} candidato(s), mas as páginas arquivadas "
-            "podem usar formatos não suportados (Flash, PDF, imagem). Tenta reformular."
-        ), []
+        return _txt(idioma, "no_content", n=len(candidatos)), []
 
-    analise = analisar_narrativa_topico(topico, contexto, historico or [], cliente)
+    analise = analisar_narrativa_topico(topico, contexto, historico or [], cliente, idioma)
     return analise, fontes
 
 

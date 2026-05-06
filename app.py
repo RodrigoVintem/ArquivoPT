@@ -449,6 +449,7 @@ defaults = {
     "n_input":         0,
     "total_analisados": 0,
     "total_mitos":     0,
+    "idioma":          "pt",
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -457,15 +458,140 @@ for k, v in defaults.items():
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+TEXTOS = {
+    "pt": {
+        "language": "Idioma",
+        "tagline": "Mapa de narrativas históricas · Arquivo.pt × IA",
+        "analysed": "Analisados",
+        "sources": "Fontes",
+        "sidebar_caption": "Ferramenta para analisar como um tema mudou ao longo do tempo. Encontra artigos no **Arquivo.pt**, extrai alegações e mostra timeline, fiabilidade das fontes, desacordos e mudança narrativa.",
+        "time_filter": "📅 Filtro Temporal",
+        "time_filter_caption": "Limita os documentos a um período histórico.",
+        "enable_year_filter": "Ativar filtro por anos",
+        "from": "De",
+        "to": "Até",
+        "test_cases": "🧪 Casos de Teste",
+        "test_cases_caption": "Temas históricos para explorar.",
+        "cases": [
+            "Bug do Ano 2000 em Portugal",
+            "Entrada do Euro em Portugal",
+            "EXPO 98 e impacto económico",
+            "Internet em Portugal nos anos 90",
+            "Crise financeira de 2008 nos bancos portugueses",
+            "Ponte Vasco da Gama na imprensa portuguesa",
+            "Gripe A nos media portugueses",
+            "Ensino superior e propinas em Portugal",
+        ],
+        "clear": "🗑️ Limpar análises",
+        "sidebar_footer": "**DECEPTIO** — Prémio Arquivo.pt 2026\n\nUsa a API do [Arquivo.pt](https://arquivo.pt) e Google Gemini com RAG de 4 camadas. Dá prioridade a fontes `.pt` e ao [Público](https://publico.pt).",
+        "how_it_works": "⚙ Como Funciona",
+        "c1_title": "Pesquisa",
+        "c1_text": "O sistema transforma o tema em queries curtas para o Arquivo.pt.",
+        "c2_title": "Artigos",
+        "c2_text": "Recupera documentos históricos relevantes de fontes <code>.pt</code> e <code>publico.pt</code>.",
+        "c3_title": "Seleção",
+        "c3_text": "Escolhe os artigos mais úteis para perceber a evolução da narrativa.",
+        "c4_title": "Análise",
+        "c4_text": "Extrai alegações, organiza a timeline e identifica desacordos.",
+        "expected": "Resultado esperado",
+        "timeline": "Linha temporal principal",
+        "claims": "Alegações por ano e fonte",
+        "reliability": "Fiabilidade das fontes",
+        "disagreements": "Contradições e desacordos",
+        "change": "Mudança da narrativa",
+        "analysis_badge": "ANÁLISE DE NARRATIVA",
+        "submitted_topic": "▶ Tema submetido",
+        "copy": "📋 Copiar",
+        "copied": "✓ Copiado",
+        "copy_error": "Erro",
+        "archive_sources": "📁 Fontes do Arquivo.pt",
+        "welcome_title": "ANÁLISE DE NARRATIVAS HISTÓRICAS",
+        "welcome_text": "Introduz um tema e o <strong>DECEPTIO</strong> encontra artigos relevantes no <strong>Arquivo.pt</strong>, extrai alegações, organiza uma timeline e destaca desacordos entre fontes.",
+        "topic_label": "Tema",
+        "topic_placeholder": "Ex: Bug do Ano 2000 em Portugal...",
+        "analyse": "ANALISAR",
+        "spinner": "🔍 A pesquisar artigos no Arquivo.pt e a construir a análise...",
+        "empty_warning": "✏️ Escreve um tema para analisar.",
+    },
+    "en": {
+        "language": "Language",
+        "tagline": "Historical narrative map · Arquivo.pt × AI",
+        "analysed": "Analysed",
+        "sources": "Sources",
+        "sidebar_caption": "Tool for analysing how a topic changed over time. It finds articles in **Arquivo.pt**, extracts claims, and shows a timeline, source reliability, disagreements, and narrative change.",
+        "time_filter": "📅 Time Filter",
+        "time_filter_caption": "Limit documents to a historical period.",
+        "enable_year_filter": "Enable year filter",
+        "from": "From",
+        "to": "To",
+        "test_cases": "🧪 Test Cases",
+        "test_cases_caption": "Historical topics to explore.",
+        "cases": [
+            "Year 2000 bug in Portugal",
+            "Introduction of the Euro in Portugal",
+            "EXPO 98 and economic impact",
+            "Internet in Portugal in the 1990s",
+            "2008 financial crisis in Portuguese banks",
+            "Vasco da Gama Bridge in the Portuguese press",
+            "Swine flu in Portuguese media",
+            "Higher education and tuition fees in Portugal",
+        ],
+        "clear": "🗑️ Clear analyses",
+        "sidebar_footer": "**DECEPTIO** — Arquivo.pt Award 2026\n\nUses the [Arquivo.pt](https://arquivo.pt) API and Google Gemini with a 4-layer RAG pipeline. Prioritises `.pt` sources and [Público](https://publico.pt).",
+        "how_it_works": "⚙ How It Works",
+        "c1_title": "Search",
+        "c1_text": "The system turns the topic into short Arquivo.pt queries.",
+        "c2_title": "Articles",
+        "c2_text": "Retrieves relevant historical documents from <code>.pt</code> and <code>publico.pt</code> sources.",
+        "c3_title": "Selection",
+        "c3_text": "Chooses the most useful articles for understanding narrative evolution.",
+        "c4_title": "Analysis",
+        "c4_text": "Extracts claims, organises the timeline, and identifies disagreements.",
+        "expected": "Expected output",
+        "timeline": "Main timeline",
+        "claims": "Claims by year and source",
+        "reliability": "Source reliability",
+        "disagreements": "Contradictions and disagreements",
+        "change": "Narrative change",
+        "analysis_badge": "NARRATIVE ANALYSIS",
+        "submitted_topic": "▶ Submitted topic",
+        "copy": "📋 Copy",
+        "copied": "✓ Copied",
+        "copy_error": "Error",
+        "archive_sources": "📁 Arquivo.pt Sources",
+        "welcome_title": "HISTORICAL NARRATIVE ANALYSIS",
+        "welcome_text": "Enter a topic and <strong>DECEPTIO</strong> finds relevant articles in <strong>Arquivo.pt</strong>, extracts claims, organises a timeline, and highlights disagreements between sources.",
+        "topic_label": "Topic",
+        "topic_placeholder": "Ex: Year 2000 bug in Portugal...",
+        "analyse": "ANALYSE",
+        "spinner": "🔍 Searching Arquivo.pt articles and building the analysis...",
+        "empty_warning": "✏️ Write a topic to analyse.",
+    },
+}
+
+
+def tr(chave: str):
+    return TEXTOS.get(st.session_state.idioma, TEXTOS["pt"]).get(chave, chave)
+
 def classificar_veredito(texto: str) -> tuple[str, str, str]:
     """
     Extrai o veredito do texto de resposta e devolve (classe_css, emoji, label).
     Procura pelo padrão **VEREDITO:** ou variantes no início da resposta.
     """
-    if "Erro" not in texto and "Limite de pedidos" not in texto:
-        return "v-default", "🧭", "ANÁLISE DE NARRATIVA"
+    if not any(x in texto for x in ["⚠️", "⏳", "📭", "📄", "Erro", "Error", "Limite de pedidos", "Request limit"]):
+        return "v-default", "🧭", tr("analysis_badge")
 
     t = texto.upper()
+    if st.session_state.idioma == "en":
+        if any(x in t for x in ["AUTHENTICATION", "API KEY", "GEMINI_API_KEY"]):
+            return "v-inconcl", "⚠️", "AUTHENTICATION ERROR"
+        if any(x in t for x in ["REQUEST LIMIT", "RATE LIMIT", "QUOTA"]):
+            return "v-inconcl", "⏳", "RATE LIMIT"
+        if any(x in t for x in ["MODEL", "UNAVAILABLE"]):
+            return "v-inconcl", "⚠️", "MODEL UNAVAILABLE"
+        if any(x in t for x in ["NO ARTICLE", "NO DOCUMENT", "NO RESULTS"]):
+            return "v-inconcl", "📭", "NO SOURCES"
+
     if any(x in t for x in ["MITO HISTÓRICO", "MITO HISTORICO", "FALSO", "DESINFORMAÇÃO", "DESINFORMACAO"]):
         return "v-mito",   "🔴", "MITO HISTÓRICO"
     if any(x in t for x in ["PÂNICO INJUSTIFICADO", "PANICO INJUSTIFICADO", "EXAGERADO", "ALARME INJUSTIFICADO"]):
@@ -476,14 +602,14 @@ def classificar_veredito(texto: str) -> tuple[str, str, str]:
         return "v-verdade","🟢", "FACTO CONFIRMADO"
     if any(x in t for x in ["INCONCLUSIVO", "INFORMAÇÃO INSUFICIENTE", "INFORMACAO INSUFICIENTE", "SEM DADOS"]):
         return "v-inconcl","🟣", "INCONCLUSIVO"
-    return "v-default", "🧭", "ANÁLISE DE NARRATIVA"
+    return "v-default", "🧭", tr("analysis_badge")
 
 
 def html_fontes(fontes: list[dict]) -> str:
     """Constrói o HTML do painel de fontes do Arquivo.pt."""
     if not fontes:
         return ""
-    html = '<div class="fontes-container"><div class="fontes-titulo">📁 Fontes do Arquivo.pt</div>'
+    html = f'<div class="fontes-container"><div class="fontes-titulo">{tr("archive_sources")}</div>'
     for f in fontes:
         link   = f.get("link_arch", "#") or "#"
         titulo = f.get("titulo", "Sem título")[:85]
@@ -565,17 +691,17 @@ st.markdown(f"""
       <div class="logo-icon">🔍</div>
       <div class="logo-text">
         <h1>DECEPTIO</h1>
-        <div class="tagline">Mapa de narrativas históricas · Arquivo.pt × IA</div>
+        <div class="tagline">{tr("tagline")}</div>
       </div>
     </div>
     <div class="header-stats">
       <div class="stat-pill">
         <div class="stat-num">{n_analisados}</div>
-        <div class="stat-label">Analisados</div>
+        <div class="stat-label">{tr("analysed")}</div>
       </div>
       <div class="stat-pill">
         <div class="stat-num" style="color:var(--vermelho)">{n_mitos}</div>
-        <div class="stat-label">Fontes</div>
+        <div class="stat-label">{tr("sources")}</div>
       </div>
     </div>
   </div>
@@ -587,38 +713,32 @@ st.markdown(f"""
 
 with st.sidebar:
     st.markdown("### 🔍 DECEPTIO")
-    st.caption(
-        "Ferramenta para analisar como um tema mudou ao longo do tempo. "
-        "Encontra artigos no **Arquivo.pt**, extrai alegações e mostra "
-        "timeline, fiabilidade das fontes, desacordos e mudança narrativa."
+    st.radio(
+        tr("language"),
+        options=["pt", "en"],
+        format_func=lambda x: "Português" if x == "pt" else "English",
+        key="idioma",
+        horizontal=True,
     )
+    st.caption(tr("sidebar_caption"))
     st.markdown("---")
 
-    st.markdown("#### 📅 Filtro Temporal")
-    st.caption("Limita os documentos a um período histórico.")
-    usar_filtro = st.checkbox("Ativar filtro por anos", value=False)
+    st.markdown(f"#### {tr('time_filter')}")
+    st.caption(tr("time_filter_caption"))
+    usar_filtro = st.checkbox(tr("enable_year_filter"), value=False)
     from_year, to_year = None, None
     if usar_filtro:
         c1, c2 = st.columns(2)
         with c1:
-            from_year = str(st.number_input("De", min_value=1996, max_value=2025, value=1998, step=1))
+            from_year = str(st.number_input(tr("from"), min_value=1996, max_value=2025, value=1998, step=1))
         with c2:
-            to_year   = str(st.number_input("Até", min_value=1996, max_value=2025, value=2005, step=1))
+            to_year   = str(st.number_input(tr("to"), min_value=1996, max_value=2025, value=2005, step=1))
 
     st.markdown("---")
-    st.markdown("#### 🧪 Casos de Teste")
-    st.caption("Temas históricos para explorar.")
+    st.markdown(f"#### {tr('test_cases')}")
+    st.caption(tr("test_cases_caption"))
 
-    casos = [
-        "Bug do Ano 2000 em Portugal",
-        "Entrada do Euro em Portugal",
-        "EXPO 98 e impacto económico",
-        "Internet em Portugal nos anos 90",
-        "Crise financeira de 2008 nos bancos portugueses",
-        "Ponte Vasco da Gama na imprensa portuguesa",
-        "Gripe A nos media portugueses",
-        "Ensino superior e propinas em Portugal",
-    ]
+    casos = tr("cases")
 
     for i, caso in enumerate(casos):
         if st.button(f"🧪 {caso[:50]}…", key=f"caso_{i}"):
@@ -627,7 +747,7 @@ with st.sidebar:
             st.rerun()
 
     st.markdown("---")
-    if st.button("🗑️ Limpar análises", use_container_width=True):
+    if st.button(tr("clear"), use_container_width=True):
         st.session_state.historico      = []
         st.session_state.historico_llm  = []
         st.session_state.input_actual   = ""
@@ -636,11 +756,7 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.caption(
-        "**DECEPTIO** — Prémio Arquivo.pt 2026\n\n"
-        "Usa a API do [Arquivo.pt](https://arquivo.pt) e Google Gemini "
-        "com RAG de 4 camadas. Dá prioridade a fontes `.pt` e ao [Público](https://publico.pt)."
-    )
+    st.caption(tr("sidebar_footer"))
 
 
 # ── Layout principal ──────────────────────────────────────────────────────────
@@ -650,35 +766,35 @@ col_main, col_side = st.columns([3, 1])
 # ── Painel lateral de instruções ──────────────────────────────────────────────
 
 with col_side:
-    st.markdown("""
+    st.markdown(f"""
     <div class="painel-info">
-      <h4>⚙ Como Funciona</h4>
+      <h4>{tr("how_it_works")}</h4>
 
       <div class="step">
         <span class="step-num">C1</span>
-        <p><strong>Query Expansion</strong><br>O Gemini gera 3 queries optimizadas para o Arquivo.pt.</p>
+        <p><strong>{tr("c1_title")}</strong><br>{tr("c1_text")}</p>
       </div>
       <div class="step">
         <span class="step-num">C2</span>
-        <p><strong>Retrieval</strong><br>Recupera até 45 documentos de fontes <code>.pt</code> e <code>publico.pt</code>.</p>
+        <p><strong>{tr("c2_title")}</strong><br>{tr("c2_text")}</p>
       </div>
       <div class="step">
         <span class="step-num">C3</span>
-        <p><strong>Re-ranking</strong><br>Seleciona os artigos mais relevantes para o tema.</p>
+        <p><strong>{tr("c3_title")}</strong><br>{tr("c3_text")}</p>
       </div>
       <div class="step">
         <span class="step-num">C4</span>
-        <p><strong>Análise IA</strong><br>Extrai alegações, organiza a timeline e identifica desacordos.</p>
+        <p><strong>{tr("c4_title")}</strong><br>{tr("c4_text")}</p>
       </div>
 
       <hr style="border-color: #2A2A38; margin: 0.8rem 0;">
 
-      <div style="font-size:0.72rem; color: #8888AA; margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:1px; font-family: var(--mono);">Resultado esperado</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#FF2D55"></div> Linha temporal principal</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#00FF88"></div> Alegações por ano e fonte</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#FFB800"></div> Fiabilidade das fontes</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#4D9EFF"></div> Contradições e desacordos</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#9B5DE5"></div> Mudança da narrativa</div>
+      <div style="font-size:0.72rem; color: #8888AA; margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:1px; font-family: var(--mono);">{tr("expected")}</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#FF2D55"></div> {tr("timeline")}</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#00FF88"></div> {tr("claims")}</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#FFB800"></div> {tr("reliability")}</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#4D9EFF"></div> {tr("disagreements")}</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#9B5DE5"></div> {tr("change")}</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -694,7 +810,7 @@ with col_main:
             # Tema do utilizador
             st.markdown(
                 f'<div class="bloco-afirmacao">'
-                f'<div class="label-q">▶ Tema submetido</div>'
+                f'<div class="label-q">{tr("submitted_topic")}</div>'
                 f'{afirmacao}'
                 f'</div>',
                 unsafe_allow_html=True
@@ -721,10 +837,10 @@ with col_main:
                     const bytes = Uint8Array.from(atob(this.dataset.copy), c => c.charCodeAt(0));
                     const text = new TextDecoder().decode(bytes);
                     navigator.clipboard.writeText(text).then(
-                      () => {{this.textContent='✓ Copiado';setTimeout(() => this.textContent='📋 Copiar',2000)}},
-                      () => {{this.textContent='Erro';setTimeout(() => this.textContent='📋 Copiar',2000)}}
+                      () => {{this.textContent='{tr("copied")}';setTimeout(() => this.textContent='{tr("copy")}',2000)}},
+                      () => {{this.textContent='{tr("copy_error")}';setTimeout(() => this.textContent='{tr("copy")}',2000)}}
                     );
-                  ">📋 Copiar</button></div>""",
+                  ">{tr("copy")}</button></div>""",
                 unsafe_allow_html=True
             )
             st.markdown(linkar_docs(resposta, fontes))
@@ -736,15 +852,11 @@ with col_main:
 
     else:
         # Ecrã de boas-vindas
-        st.markdown("""
+        st.markdown(f"""
         <div class="welcome">
           <div class="welcome-icon">🔍</div>
-          <h2>ANÁLISE DE NARRATIVAS HISTÓRICAS</h2>
-          <p>
-            Introduz um tema e o <strong>DECEPTIO</strong> encontra artigos relevantes no
-            <strong>Arquivo.pt</strong>, extrai alegações, organiza uma timeline e destaca
-            desacordos entre fontes.
-          </p>
+          <h2>{tr("welcome_title")}</h2>
+          <p>{tr("welcome_text")}</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -754,14 +866,14 @@ with col_main:
 
     with col_in:
         input_val = st.text_input(
-            label            = "Tema",
+            label            = tr("topic_label"),
             value            = st.session_state.input_actual,
-            placeholder      = "Ex: Bug do Ano 2000 em Portugal...",
+            placeholder      = tr("topic_placeholder"),
             label_visibility = "collapsed",
             key              = f"input_{st.session_state.n_input}",
         )
     with col_btn:
-        analisar = st.button("ANALISAR", use_container_width=True, type="primary")
+        analisar = st.button(tr("analyse"), use_container_width=True, type="primary")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -774,12 +886,13 @@ if analisar and texto_final:
     st.session_state.input_actual = texto_final
 
     with col_main:
-        with st.spinner("🔍 A pesquisar artigos no Arquivo.pt e a construir a análise..."):
+        with st.spinner(tr("spinner")):
             resposta, fontes = analisar_topico(
                 topico    = texto_final,
                 from_year = from_year if usar_filtro else None,
                 to_year   = to_year   if usar_filtro else None,
                 historico = st.session_state.historico_llm,
+                idioma    = st.session_state.idioma,
             )
 
     # Atualiza contadores
@@ -796,4 +909,4 @@ if analisar and texto_final:
     st.rerun()
 
 elif analisar:
-    st.warning("✏️ Escreve um tema para analisar.")
+    st.warning(tr("empty_warning"))
