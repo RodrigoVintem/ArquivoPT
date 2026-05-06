@@ -19,7 +19,7 @@ from deceptio_rag import analisar_topico
 # ── Configuração ──────────────────────────────────────────────────────────────
 
 st.set_page_config(
-    page_title = "DECEPTIO - Análise de Narrativas Históricas",
+    page_title = "DECEPTIO - Mapa de Narrativas Históricas",
     page_icon  = "🔍",
     layout     = "wide",
     initial_sidebar_state = "expanded",
@@ -519,7 +519,7 @@ TEXTOS = {
         "tagline": "Mapa de narrativas históricas · Arquivo.pt × IA",
         "analysed": "Analisados",
         "sources": "Fontes",
-        "sidebar_caption": "O DECEPTIO é uma ferramenta para analisar como uma narrativa mudou ao longo do tempo.\n\nPara tal, analisa artigos do Arquivo.pt, extrai alegações e cria timelines. Avalia a fiabilidade das fontes, encontra contradições e desacordos revelando mudanças numa narrativa ao longo do tempo.",
+        "sidebar_caption": "O DECEPTIO é uma ferramenta para analisar como uma narrativa mudou ao longo do tempo.\n\nPara tal, analisa artigos do Arquivo.pt, extrai alegações e cria timelines. Avalia a fiabilidade das fontes, encontra contradições e diferenças revelando mudanças numa narrativa ao longo do tempo.",
         "time_filter": "📅 Filtro Temporal",
         "time_filter_caption": "Procura apenas documentos dentro do período selecionado.",
         "enable_year_filter": "Ativar procura por anos",
@@ -547,12 +547,12 @@ TEXTOS = {
         "c3_title": "Re-ranking",
         "c3_text": "Com base nas pontuações atribuídas, seleciona os artigos mais relevantes.",
         "c4_title": "Análise IA",
-        "c4_text": "Extrai alegações, organiza a timeline e identifica desacordos.",
+        "c4_text": "Extrai alegações, organiza a timeline e identifica diferenças.",
         "expected": "Resultado esperado",
         "timeline": "Linha temporal principal",
         "claims": "Alegações por ano e fonte",
         "reliability": "Fiabilidade das fontes",
-        "disagreements": "Contradições e desacordos",
+        "disagreements": "Contradições e diferenças",
         "change": "Mudança da narrativa",
         "analysis_badge": "ANÁLISE DE NARRATIVA",
         "submitted_topic": "Tema submetido",
@@ -561,7 +561,7 @@ TEXTOS = {
         "copy_error": "Erro",
         "archive_sources": "📁 Fontes do Arquivo.pt",
         "welcome_title": "ANÁLISE DE NARRATIVAS HISTÓRICAS",
-        "welcome_text": "Introduz um tema e o <strong>DECEPTIO</strong> encontra artigos relevantes no <strong>Arquivo.pt</strong>, extrai alegações, organiza uma timeline e destaca desacordos entre fontes.",
+        "welcome_text": "Introduz um tema e o <strong>DECEPTIO</strong> encontra artigos relevantes no <strong>Arquivo.pt</strong>, extrai alegações, organiza uma timeline e destaca diferenças entre fontes.",
         "topic_label": "Tema",
         "topic_placeholder": "Ex: Bug do Ano 2000 em Portugal...",
         "analyse": "ANALISAR",
@@ -715,7 +715,7 @@ def colorir_titulos(texto: str) -> str:
     texto = re.sub(r"\*?\*?3\. Source reliability\*?\*?", r"<h4 style='color: var(--amarelo); margin-top: 1.5rem;'>3. Source reliability</h4>", texto)
     
     # 4. Azul
-    texto = re.sub(r"\*?\*?4\. Contradi[cç][oõ]es e desacordos\*?\*?", r"<h4 style='color: var(--azul); margin-top: 1.5rem;'>4. Contradições e desacordos</h4>", texto)
+    texto = re.sub(r"\*?\*?4\. Contradi[cç][oõ]es e diferenças\*?\*?", r"<h4 style='color: var(--azul); margin-top: 1.5rem;'>4. Contradições e diferenças</h4>", texto)
     # EN version
     texto = re.sub(r"\*?\*?4\. Contradictions and disagreements\*?\*?", r"<h4 style='color: var(--azul); margin-top: 1.5rem;'>4. Contradictions and disagreements</h4>", texto)
     
