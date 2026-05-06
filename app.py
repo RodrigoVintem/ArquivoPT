@@ -886,8 +886,8 @@ with col_main:
                 navigator.clipboard.writeText(text).then(
                   () => {{this.textContent='{tr("copied")}';setTimeout(() => this.textContent='{tr("copy")}',2000)}},
                   () => {{this.textContent='{tr("copy_error")}';setTimeout(() => this.textContent='{tr("copy")}',2000)}}
-                );
-              ">📋 {tr("copy")}</button>
+                                );
+                            ">{tr("copy")}</button>
         </div>
 
 {linkar_docs(colorir_titulos(resposta), fontes)}
