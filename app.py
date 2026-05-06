@@ -510,6 +510,12 @@ hr { border: none !important; border-top: 1px solid var(--borda) !important; mar
 .secao-3 { color: var(--amarelo); }
 .secao-4 { color: var(--azul); }
 .secao-5 { color: var(--roxo); }
+.secao-resumo {
+    color: var(--vermelho);
+    font-size: 1.2rem;
+    margin-top: 0.8rem;
+    border-bottom-color: rgba(255,45,85,0.45);
+}
 .paragrafo-resposta {
     margin: 0.55rem 0;
     line-height: 1.7;
@@ -537,6 +543,43 @@ hr { border: none !important; border-top: 1px solid var(--borda) !important; mar
 }
 .claim-resposta::before {
     color: var(--verde);
+}
+.claim-main {
+    display: block;
+}
+.claim-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+}
+.claim-source {
+    display: block;
+    margin-top: 0.5rem;
+    color: var(--subtexto);
+    font-size: 0.88rem;
+    line-height: 1.5;
+}
+.claim-label {
+    color: var(--verde);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-right: 0.35rem;
+}
+.claim-type {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    padding: 0.12rem 0.45rem;
+    border: 1px solid rgba(255,184,0,0.35);
+    border-radius: 3px;
+    color: var(--amarelo);
+    background: rgba(255,184,0,0.07);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    line-height: 1.35;
 }
 .ano-resposta {
     display: inline-block;
@@ -604,14 +647,10 @@ TEXTOS = {
         "test_cases": "🧪 Casos de Teste",
         "test_cases_caption": "Temas históricos para explorar.",
         "cases": [
+            "Como mudou a opinião pública sobre a privatização em Portugal?",
             "Bug do Ano 2000 em Portugal",
-            "Entrada do Euro em Portugal",
-            "EXPO 98 e impacto económico",
-            "Internet em Portugal nos anos 90",
-            "Crise financeira de 2008 nos bancos portugueses",
-            "Ponte Vasco da Gama na imprensa portuguesa",
-            "Gripe A nos media portugueses",
-            "Ensino superior e propinas em Portugal",
+            "O Iraque tinha armas de destruição maciça?",
+            "A imigração é benéfica para Portugal?",
         ],
         "clear": "🗑️ Limpar análises",
         "sidebar_footer": "**DECEPTIO** — Candidatura ao Prémio Arquivo.pt 2026\n\nUsa a API do [Arquivo.pt](https://arquivo.pt) e Inteligência Artificial (LLMs) numa arquitetura RAG de 4 camadas. Dá prioridade a fontes `.pt` e textos do [Público](https://publico.pt).",
@@ -658,14 +697,10 @@ TEXTOS = {
         "test_cases": "🧪 Test Cases",
         "test_cases_caption": "Historical topics to explore.",
         "cases": [
+            "How has public opinion on privatization changed in Portugal?",
             "Year 2000 bug in Portugal",
-            "Introduction of the Euro in Portugal",
-            "EXPO 98 and economic impact",
-            "Internet in Portugal in the 1990s",
-            "2008 financial crisis in Portuguese banks",
-            "Vasco da Gama Bridge in the Portuguese press",
-            "Swine flu in Portuguese media",
-            "Higher education and tuition fees in Portugal",
+            "Did Iraq have weapons of mass destruction?",
+            "Is immigration beneficial for Portugal?",
         ],
         "clear": "🗑️ Clear analyses",
         "sidebar_footer": "**DECEPTIO** — Arquivo.pt Award 2026 Application\n\nUses the [Arquivo.pt](https://arquivo.pt) API and Artificial Intelligence (LLMs) in a 4-layer RAG architecture. Prioritizes `.pt` sources and texts from [Público](https://publico.pt).",
@@ -733,26 +768,26 @@ def classificar_veredito(texto: str) -> tuple[str, str, str]:
 def html_fontes(fontes: list[dict]) -> str:
     if not fontes:
         return ""
-    html = f'<div class="fontes-container"><div class="fontes-titulo">{tr("archive_sources")}</div>'
+    bloco_html = f'<div class="fontes-container"><div class="fontes-titulo">{tr("archive_sources")}</div>'
     for f in fontes:
         link   = f.get("link_arch", "#") or "#"
-        titulo = f.get("titulo", "Sem título")[:85]
-        data   = f.get("data", "")
+        titulo = " ".join(str(f.get("titulo", "Sem título")).split())[:85]
+        data   = html.escape(" ".join(str(f.get("data", "")).split()))
         num    = f.get("numero", "")
-        url_o  = f.get("url_orig", "")
+        url_o  = " ".join(str(f.get("url_orig", "")).split())
         badge_cls = "publico" if "publico.pt" in url_o.lower() else ""
-        html += (
+        bloco_html += (
             f'<div class="fonte-row">'
             f'<span class="fonte-badge {badge_cls}">DOC {num}</span>'
             f'<span class="fonte-data">{data}</span>'
             f'<span class="fonte-link">'
-            f'<a href="{link}" target="_blank" rel="noopener">{titulo}</a>'
-            f'<br><span class="fonte-url">{url_o[:70]}</span>'
+            f'<a href="{html.escape(link, quote=True)}" target="_blank" rel="noopener">{html.escape(titulo)}</a>'
+            f'<br><span class="fonte-url">{html.escape(url_o[:70])}</span>'
             f'</span>'
             f'</div>'
         )
-    html += '</div>'
-    return html
+    bloco_html += '</div>'
+    return bloco_html
 
 def linkar_docs(texto: str, fontes: list[dict]) -> str:
     links = {str(f.get("numero")): (f.get("link_arch") or "#") for f in fontes}
@@ -813,8 +848,14 @@ def formatar_resposta_html(texto: str, fontes: list[dict]) -> str:
             txt = txt[1:-1].strip()
         txt = txt.replace("\r\n", "\n").replace("\r", "\n")
         txt = re.sub(r"</?div[^>]*>", "", txt, flags=re.IGNORECASE)
-        txt = re.sub(r"\s+-\s+(?=(?:\d{4}:|[A-ZÁÉÍÓÚÂÊÔÃÕÇ]))", "\n- ", txt)
-        txt = re.sub(r"\s+\*\s+(?=(?:\d{4}:|[A-ZÁÉÍÓÚÂÊÔÃÕÇ]))", "\n* ", txt)
+        txt = re.sub(r"\s+-\s+(?=(?:19|20)\d{2}:)", "\n- ", txt)
+        txt = re.sub(r"\s+\*\s+(?=(?:19|20)\d{2}:)", "\n* ", txt)
+        txt = re.sub(
+            r"\s+(?=(?:[-•*]\s*)?\*{0,2}(?:Claim|Allegation|Alegação|Alegacao)\*{0,2}\s*:)",
+            "\n",
+            txt,
+            flags=re.IGNORECASE,
+        )
         txt = re.sub(r"(?<!\n)(\*\*?[1-5]\.\s*)", r"\n\1", txt)
         txt = re.sub(
             r"(?<!\n)(?<!DOC\s)(?<!DOC\s)(\b(?:19|20)\d{2}:)",
@@ -881,12 +922,15 @@ def formatar_resposta_html(texto: str, fontes: list[dict]) -> str:
         limpa = linha.strip()
         limpa = re.sub(r"^[\s*#-]+", "", limpa)
         limpa = re.sub(r"[\s*:*.]+$", "", limpa).strip()
+        if re.match(r"^(?:Executive summary|Resumo executivo)\s*:?$", limpa, flags=re.IGNORECASE):
+            titulo = "Resumo executivo" if st.session_state.idioma == "pt" else "Executive Summary"
+            return 0, f'<div class="secao-resposta secao-resumo">{html.escape(titulo)}</div>'
         padroes = [
             (1, r"^(?:1\.\s*)?(?:Linha temporal principal|Main timeline)\s*:?$"),
             (2, r"^(?:2\.\s*)?(?:Alega[cç][oõ]es.*fonte|Claims by year and source|Main claims by year and source|Main allegations by year and source|Main allegations.*)\s*:?$"),
             (3, r"^(?:3\.\s*)?(?:Fiabilidade das fontes|Source reliability|Reliability of sources|Reliability of the sources)\s*:?$"),
             (4, r"^(?:4\.\s*)?(?:Contradi[cç][oõ]es.*|Contradictions and disagreements)\s*:?$"),
-            (5, r"^(?:5\.\s*)?(?:Mudan[cç]a da narrativa|Narrative change)\s*:?$"),
+            (5, r"^(?:5\.\s*)?(?:Mudan[cç]a da narrativa|Narrative change|Change in narrative|Change of narrative)\s*:?$"),
         ]
         titulos = {
             1: tr("timeline"),
@@ -900,14 +944,95 @@ def formatar_resposta_html(texto: str, fontes: list[dict]) -> str:
                 return idx, f'<div class="secao-resposta secao-{idx}">{html.escape(titulos[idx])}</div>'
         return None
 
+    def item_claim(conteudo: str) -> str:
+        conteudo = conteudo.strip()
+        tipo_match = re.search(r"\s+\(([^()]{2,80})\)\s*$", conteudo)
+        tipo_html = ""
+        if tipo_match:
+            tipo = tipo_match.group(1).strip()
+            conteudo = conteudo[:tipo_match.start()].strip()
+            tipo_html = f'<div class="claim-meta"><span class="claim-type">{html.escape(tipo)}</span></div>'
+        return (
+            '<div class="bullet-resposta claim-resposta">'
+            f'<div><span class="claim-main">{linkificar_docs(conteudo)}</span>{tipo_html}</div>'
+            '</div>'
+        )
+
+    def item_claim_estruturado(claim: str, fonte: str = "", tipo: str = "") -> str:
+        fonte_html = ""
+        tipo_html = ""
+        if fonte:
+            fonte_label = "Fonte" if st.session_state.idioma == "pt" else "Source"
+            fonte_html = (
+                '<span class="claim-source">'
+                f'<span class="claim-label">{fonte_label}</span>{linkificar_docs(fonte.strip())}'
+                '</span>'
+            )
+        if tipo:
+            tipo_limpo = re.sub(r"[.\s]+$", "", tipo.strip())
+            tipo_html = f'<div class="claim-meta"><span class="claim-type">{html.escape(tipo_limpo)}</span></div>'
+        return (
+            '<div class="bullet-resposta claim-resposta">'
+            f'<div><span class="claim-main">{linkificar_docs(claim.strip())}</span>{fonte_html}{tipo_html}</div>'
+            '</div>'
+        )
+
+    def campo_claim_estruturado(linha: str) -> tuple[str, str] | None:
+        limpa = re.sub(r"^[-•*]\s+", "", linha).strip()
+        limpa = re.sub(r"^\*+|\*+$", "", limpa).strip()
+        match = re.match(
+            r"^\*{0,2}\s*(Claim|Allegation|Alega(?:ç|c)[aã]o|Source|Sources|Fonte|Fonte/documento|Type|Tipo)\s*\*{0,2}\s*:?\*{0,2}\s*(.+)$",
+            limpa,
+            flags=re.IGNORECASE,
+        )
+        if not match:
+            return None
+        chave = match.group(1).lower()
+        valor = match.group(2).strip()
+        if chave in {"claim", "allegation", "alegação", "alegacao"}:
+            return "claim", valor
+        if chave in {"source", "sources", "fonte", "fonte/documento"}:
+            return "source", valor
+        return "type", valor
+
+    def separar_claim_embutido(valor: str) -> dict[str, str]:
+        partes_claim = {"claim": valor.strip()}
+        match = re.match(
+            r"(?P<claim>.*?)(?:\s+Source\s*:\s*(?P<source>.*?))?(?:\s+Type\s*:\s*(?P<type>.*))?$",
+            valor.strip(),
+            flags=re.IGNORECASE,
+        )
+        if match:
+            partes_claim["claim"] = (match.group("claim") or "").strip()
+            if match.group("source"):
+                partes_claim["source"] = match.group("source").strip()
+            if match.group("type"):
+                partes_claim["type"] = match.group("type").strip()
+        return partes_claim
+
     partes = []
     secao_atual = 0
+    claim_pendente: dict[str, str] | None = None
+
+    def descarregar_claim_pendente():
+        nonlocal claim_pendente
+        if claim_pendente:
+            partes.append(
+                item_claim_estruturado(
+                    claim_pendente.get("claim", ""),
+                    claim_pendente.get("source", ""),
+                    claim_pendente.get("type", ""),
+                )
+            )
+            claim_pendente = None
+
     for linha in normalizar(texto).splitlines():
         linha = linha.strip()
-        if not linha or linha == "*":
+        if not linha or re.fullmatch(r"[-–—*•\s]+", linha):
             continue
         secao_detectada = secao(linha)
         if secao_detectada:
+            descarregar_claim_pendente()
             secao_atual, bloco_secao = secao_detectada
             partes.append(bloco_secao)
             continue
@@ -915,23 +1040,58 @@ def formatar_resposta_html(texto: str, fontes: list[dict]) -> str:
         linha = re.sub(r"^\*+|\*+$", "", linha).strip()
         ano_match = re.match(r"^((?:19|20)\d{2}):\s*(.*)$", linha)
         if ano_match:
+            descarregar_claim_pendente()
             ano, resto = ano_match.groups()
             classe_ano = "ano-resposta ano-claims" if secao_atual == 2 else "ano-resposta"
             classe_item = "bullet-resposta claim-resposta" if secao_atual == 2 else "bullet-resposta"
             partes.append(f'<div class="{classe_ano}">{ano}</div>')
             if resto.strip():
-                partes.append(f'<div class="{classe_item}"><div>{linkificar_docs(resto.strip())}</div></div>')
+                if secao_atual == 2:
+                    partes.append(item_claim(resto))
+                else:
+                    partes.append(f'<div class="{classe_item}"><div>{linkificar_docs(resto.strip())}</div></div>')
             continue
+
+        if secao_atual == 2:
+            campo = campo_claim_estruturado(linha)
+            if campo:
+                chave, valor = campo
+            if campo and chave == "claim":
+                descarregar_claim_pendente()
+                claim_pendente = separar_claim_embutido(valor)
+                if claim_pendente.get("type"):
+                    descarregar_claim_pendente()
+                continue
+            if campo and chave == "source":
+                if claim_pendente:
+                    claim_pendente["source"] = valor
+                else:
+                    partes.append(item_claim_estruturado("", valor, ""))
+                continue
+            if campo and chave == "type":
+                if claim_pendente:
+                    claim_pendente["type"] = valor
+                    descarregar_claim_pendente()
+                else:
+                    partes.append(item_claim_estruturado("", "", valor))
+                continue
 
         if re.match(r"^[-•*]\s+", linha):
             conteudo = re.sub(r"^[-•*]\s+", "", linha).strip()
             conteudo = re.sub(r"^\*+|\*+$", "", conteudo).strip()
             classe_item = "bullet-resposta claim-resposta" if secao_atual == 2 else "bullet-resposta"
-            partes.append(f'<div class="{classe_item}"><div>{linkificar_docs(conteudo)}</div></div>')
+            if secao_atual == 2:
+                descarregar_claim_pendente()
+                partes.append(item_claim(conteudo))
+            else:
+                partes.append(f'<div class="{classe_item}"><div>{linkificar_docs(conteudo)}</div></div>')
         elif secao_atual == 2 and linha:
-            partes.append(f'<div class="bullet-resposta claim-resposta"><div>{linkificar_docs(linha)}</div></div>')
+            descarregar_claim_pendente()
+            partes.append(item_claim(linha))
         else:
+            descarregar_claim_pendente()
             partes.append(f'<div class="paragrafo-resposta">{linkificar_docs(linha)}</div>')
+    descarregar_claim_pendente()
     return "\n".join(partes)
 
 # ── Cabeçalho ─────────────────────────────────────────────────────────────────
