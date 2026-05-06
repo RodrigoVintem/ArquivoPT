@@ -1,98 +1,91 @@
-# DECEPTIO - Analise de Narrativas Historicas
+# 🔍 DECEPTIO - Mapa de Narrativas Históricas
 
-Premio Arquivo.pt 2026
+**Candidatura ao Prémio Arquivo.pt 2026**
 
-DECEPTIO e um MVP para explorar como um tema foi narrado ao longo do tempo na Web portuguesa arquivada.
+🌐 **[EXPERIMENTAR A DEMO ONLINE](https://deceptio.streamlit.app)**
 
-Em vez de receber uma afirmacao isolada e devolver apenas um veredito, a primeira versao foca-se neste fluxo:
+O DECEPTIO é uma ferramenta inteligente para explorar como um tema ou narrativa mudou ao longo do tempo na Web portuguesa arquivada.
 
-1. O utilizador introduz um tema.
+Em vez de receber uma afirmação isolada e devolver apenas um veredito binário, o DECEPTIO foca-se na auditoria da narrativa:
+
+1. O utilizador introduz um tema histórico.
 2. O sistema encontra artigos relevantes no Arquivo.pt.
-3. O sistema extrai as alegacoes principais dos documentos.
-4. O sistema agrupa alegacoes por ano e por fonte.
-5. A interface mostra:
-   - linha temporal principal;
-   - visao geral da fiabilidade das fontes;
-   - contradicoes e desacordos;
-   - resumo da mudanca narrativa.
+3. Extrai as alegações principais dos documentos.
+4. Agrupa alegações por ano e por fonte.
+5. A interface apresenta:
+   * Linha temporal principal;
+   * Visão geral da fiabilidade das fontes;
+   * Contradições e desacordos detetados;
+   * Resumo de como a narrativa mudou.
 
-## Exemplos de temas
+## 🧪 Exemplos de Temas Analisados
 
 - Bug do Ano 2000 em Portugal
 - Entrada do Euro em Portugal
-- EXPO 98 e impacto economico
+- EXPO 98 e impacto económico
 - Internet em Portugal nos anos 90
 - Crise financeira de 2008 nos bancos portugueses
 - Ponte Vasco da Gama na imprensa portuguesa
 
-## Arquitetura
-
+## ⚙️ Arquitetura RAG (4 Camadas)
 ```text
 Tema do utilizador
         |
         v
-C1: Query expansion
+C1: Query Expansion (A IA gera 3 queries otimizadas)
         |
         v
-C2: Retrieval multi-query no Arquivo.pt
+C2: Retrieval (Pesquisa multi-query no Arquivo.pt com boost para .pt e publico.pt)
         |
         v
-C3: Re-ranking dos artigos mais relevantes
+C3: Re-ranking (A IA seleciona os artigos mais relevantes)
         |
         v
-C4: Extracao de texto + analise de narrativa com IA
+C4: Análise IA (Extração de texto + cruzamento de factos)
         |
         v
-Timeline, fontes, desacordos e mudanca narrativa
+Timeline, Fontes, Desacordos e Mudança Narrativa
 ```
 
-## Instalacao
-
-Pre-requisitos:
+## 🛠️ Instalação Local
+Pré-requisitos:
 
 - Python 3.11+
-- API key do Google Gemini, configurada como `GEMINI_API_KEY`
+- API key do Google Gemini, configurada como GEMINI_API_KEY
 
 ```bash
+# Instalar dependências
 pip install -r requirements.txt
 ```
 
-Windows PowerShell:
+Para correr (Windows PowerShell):
 
 ```powershell
 $env:GEMINI_API_KEY="AIzaSy..."
 streamlit run app.py
 ```
 
-Linux / macOS:
+Para correr (Linux / macOS):
 
 ```bash
 export GEMINI_API_KEY="AIzaSy..."
 streamlit run app.py
 ```
 
-A aplicacao abre em `http://localhost:8501`.
+A aplicação abre em http://localhost:8501.
 
-## Teste em terminal
-
-```bash
-python teste_rag.py "Bug do Ano 2000 em Portugal"
-```
-
-## Estrutura do projeto
-
+📂 Estrutura do Projeto
 ```text
 DECEPTIO/
-├── app.py            # Interface Streamlit
-├── deceptio_rag.py   # Pipeline Arquivo.pt + Gemini
-├── teste_rag.py      # Teste rapido em terminal
-├── requirements.txt
+├── app.py            # Interface Streamlit (Frontend)
+├── deceptio_rag.py   # Motor de RAG 4-Camadas (Backend)
+├── teste_rag.py      # Script de teste rápido em terminal
+├── requirements.txt  # Dependências
 └── README.md
 ```
 
-## Notas de rigor
-
-- Todas as leituras devem citar documentos do Arquivo.pt como `[DOC N]`.
-- A analise separa evidencia documental de inferencia do modelo.
-- Quando a amostra for fraca ou contraditoria, o sistema deve dizer isso claramente.
-- Fontes `.pt` e `publico.pt` continuam a receber prioridade no retrieval.
+🎯 Notas de Rigor e Menção Honrosa
+Todas as leituras feitas pela IA citam obrigatoriamente os documentos do Arquivo.pt usando o formato [DOC N].
+A análise separa rigorosamente a evidência documental da inferência do modelo.
+Quando a amostra for fraca, fragmentada ou contraditória, o sistema relata a inconclusividade de forma transparente.
+Menção Honrosa: O pipeline de Retrieval (C2) aplica um multiplicador de relevância específico para priorizar fontes nacionais (.pt) e o jornal Público (publico.pt).
