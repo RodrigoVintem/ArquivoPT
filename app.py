@@ -14,6 +14,7 @@ Para correr:
 import streamlit as st
 import re
 import base64
+import html
 from deceptio_rag import analisar_topico
 
 # ── Configuração ──────────────────────────────────────────────────────────────
@@ -492,6 +493,58 @@ hr { border: none !important; border-top: 1px solid var(--borda) !important; mar
     padding: 1px 5px; border-radius: 3px; font-family: var(--mono); font-size: 0.85em;
 }
 .card-resultado-body a { color: var(--azul) !important; }
+.secao-resposta {
+    font-family: var(--mono);
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin: 1.35rem 0 0.65rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid var(--borda);
+}
+.secao-1 { color: var(--vermelho); }
+.secao-2 { color: var(--verde); }
+.secao-3 { color: var(--amarelo); }
+.secao-4 { color: var(--azul); }
+.secao-5 { color: var(--roxo); }
+.paragrafo-resposta {
+    margin: 0.55rem 0;
+    line-height: 1.7;
+}
+.bullet-resposta {
+    display: grid;
+    grid-template-columns: 0.9rem 1fr;
+    gap: 0.55rem;
+    margin: 0.45rem 0;
+    line-height: 1.65;
+}
+.bullet-resposta::before {
+    content: "•";
+    color: var(--vermelho);
+    font-family: var(--mono);
+}
+.ano-resposta {
+    display: inline-block;
+    margin: 0.9rem 0 0.25rem;
+    padding: 0.12rem 0.45rem;
+    border: 1px solid var(--borda2);
+    border-radius: 3px;
+    color: var(--texto);
+    background: var(--bg3);
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+.doc-link {
+    color: var(--azul) !important;
+    font-family: var(--mono);
+    font-size: 0.88em;
+    text-decoration: none !important;
+    border-bottom: 1px solid rgba(77,158,255,0.45);
+}
+.doc-link:hover {
+    color: var(--texto) !important;
+    border-bottom-color: var(--texto);
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -573,7 +626,7 @@ TEXTOS = {
         "tagline": "Historical narrative map · Arquivo.pt × AI",
         "analysed": "Analysed",
         "sources": "Sources",
-        "sidebar_caption": "DECEPTIO is a tool for analyzing how a narrative changed over time. To do this, it analyzes articles from **Arquivo.pt**, extracts claims and creates timelines. It evaluates source reliability, finds contradictions and disagreements, revealing changes in a narrative over time.",
+        "sidebar_caption": "DECEPTIO is a tool for analyzing how a narrative changed over time. To do this, it analyzes articles from Arquivo.pt, extracts claims and creates timelines. It evaluates source reliability, finds contradictions and disagreements, revealing changes in a narrative over time.",
         "time_filter": "📅 Time Filter",
         "time_filter_caption": "Search only for documents within the selected period.",
         "enable_year_filter": "Enable search by year",
@@ -725,6 +778,134 @@ def colorir_titulos(texto: str) -> str:
     texto = re.sub(r"\*?\*?5\. Narrative change\*?\*?", r"<h4 style='color: var(--roxo); margin-top: 1.5rem;'>5. Narrative change</h4>", texto)
     
     return texto
+
+
+def formatar_resposta_html(texto: str, fontes: list[dict]) -> str:
+    """Renderiza a resposta como HTML consistente, com DOC links reais."""
+    links = {str(f.get("numero")): (f.get("link_arch") or "#") for f in fontes}
+
+    def normalizar(txt: str) -> str:
+        txt = txt.strip()
+        if len(txt) >= 2 and txt[0] == txt[-1] and txt[0] in {"'", '"'}:
+            txt = txt[1:-1].strip()
+        txt = txt.replace("\r\n", "\n").replace("\r", "\n")
+        txt = re.sub(r"\s+-\s+(?=(?:\d{4}:|[A-ZÁÉÍÓÚÂÊÔÃÕÇ]))", "\n- ", txt)
+        txt = re.sub(r"\s+\*\s+(?=(?:\d{4}:|[A-ZÁÉÍÓÚÂÊÔÃÕÇ]))", "\n* ", txt)
+        txt = re.sub(r"(?<!\n)(\*\*?[1-5]\.\s*)", r"\n\1", txt)
+        txt = re.sub(
+            r"(?<!\n)(?<!DOC\s)(?<!DOC\s)(\b(?:19|20)\d{2}:)",
+            r"\n\1",
+            txt,
+        )
+        return txt
+
+    def doc_link(n: str) -> str:
+        if n in links:
+            return (
+                f'<a class="doc-link" href="{html.escape(links[n], quote=True)}" '
+                f'target="_blank" rel="noopener">DOC {n}</a>'
+            )
+        return f"DOC {n}"
+
+    def linkificar_docs(txt: str) -> str:
+        placeholders: dict[str, str] = {}
+
+        def guardar(anchor: str) -> str:
+            key = f"@@DOC_LINK_{len(placeholders)}@@"
+            placeholders[key] = anchor
+            return key
+
+        def markdown_doc(m):
+            n = m.group(1)
+            url = m.group(2)
+            return guardar(
+                f'<a class="doc-link" href="{html.escape(url, quote=True)}" '
+                f'target="_blank" rel="noopener">DOC {n}</a>'
+            )
+
+        def lista_doc(m):
+            nums = re.findall(r"\d+", m.group(1))
+            return guardar(", ".join(doc_link(n) for n in nums))
+
+        def ref_doc(m):
+            return guardar(doc_link(m.group(1)))
+
+        txt = re.sub(
+            r"\[\s*DOC(?:UMENTO)?\s*:?\s*(\d+)\s*\]\(([^)]+)\)",
+            markdown_doc,
+            txt,
+            flags=re.IGNORECASE,
+        )
+        txt = re.sub(
+            r"\[\s*((?:DOC(?:UMENTO)?S?\s*:?\s*)?\d+(?:\s*(?:,|;|e|and)\s*(?:DOC(?:UMENTO)?S?\s*:?\s*)?\d+)+)\s*\](?!\()",
+            lista_doc,
+            txt,
+            flags=re.IGNORECASE,
+        )
+        txt = re.sub(r"\[\[\s*DOC(?:UMENTO)?\s*:?\s*(\d+)\s*\]\](?!\()", ref_doc, txt, flags=re.IGNORECASE)
+        txt = re.sub(r"\[\s*DOC(?:UMENTO)?\s*:?\s*(\d+)\s*\](?!\()", ref_doc, txt, flags=re.IGNORECASE)
+        txt = re.sub(r"(?<!\[)\bDOC(?:UMENTO)?\s*:?\s*(\d+)\b(?!\]\()", ref_doc, txt, flags=re.IGNORECASE)
+
+        escaped = html.escape(txt)
+        for key, anchor in placeholders.items():
+            escaped = escaped.replace(key, anchor)
+        escaped = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", escaped)
+        escaped = escaped.replace("*", "")
+        return escaped
+
+    def secao(linha: str) -> tuple[int, str] | None:
+        limpa = linha.strip()
+        limpa = re.sub(r"^[\s*#-]+", "", limpa)
+        limpa = re.sub(r"[\s*:*.]+$", "", limpa).strip()
+        padroes = [
+            (1, r"^(?:1\.\s*)?(?:Linha temporal principal|Main timeline)\s*:?$"),
+            (2, r"^(?:2\.\s*)?(?:Alega[cç][oõ]es.*fonte|Claims by year and source|Main claims by year and source|Main allegations by year and source|Main allegations.*)\s*:?$"),
+            (3, r"^(?:3\.\s*)?(?:Fiabilidade das fontes|Source reliability|Reliability of sources|Reliability of the sources)\s*:?$"),
+            (4, r"^(?:4\.\s*)?(?:Contradi[cç][oõ]es.*|Contradictions and disagreements)\s*:?$"),
+            (5, r"^(?:5\.\s*)?(?:Mudan[cç]a da narrativa|Narrative change)\s*:?$"),
+        ]
+        titulos = {
+            1: tr("timeline"),
+            2: tr("claims"),
+            3: tr("reliability"),
+            4: tr("disagreements"),
+            5: tr("change"),
+        }
+        for idx, pattern in padroes:
+            if re.match(pattern, limpa, flags=re.IGNORECASE):
+                return idx, f'<div class="secao-resposta secao-{idx}">{html.escape(titulos[idx])}</div>'
+        return None
+
+    partes = []
+    secao_atual = 0
+    for linha in normalizar(texto).splitlines():
+        linha = linha.strip()
+        if not linha or linha == "*":
+            continue
+        secao_detectada = secao(linha)
+        if secao_detectada:
+            secao_atual, bloco_secao = secao_detectada
+            partes.append(bloco_secao)
+            continue
+
+        linha = re.sub(r"^\*+|\*+$", "", linha).strip()
+        ano_match = re.match(r"^((?:19|20)\d{2}):\s*(.*)$", linha)
+        if ano_match:
+            ano, resto = ano_match.groups()
+            partes.append(f'<div class="ano-resposta">{ano}</div>')
+            if resto.strip():
+                partes.append(f'<div class="bullet-resposta"><div>{linkificar_docs(resto.strip())}</div></div>')
+            continue
+
+        if re.match(r"^[-•*]\s+", linha):
+            conteudo = re.sub(r"^[-•*]\s+", "", linha).strip()
+            conteudo = re.sub(r"^\*+|\*+$", "", conteudo).strip()
+            partes.append(f'<div class="bullet-resposta"><div>{linkificar_docs(conteudo)}</div></div>')
+        elif secao_atual == 2 and linha:
+            partes.append(f'<div class="bullet-resposta"><div>{linkificar_docs(linha)}</div></div>')
+        else:
+            partes.append(f'<div class="paragrafo-resposta">{linkificar_docs(linha)}</div>')
+    return "\n".join(partes)
 
 # ── Cabeçalho ─────────────────────────────────────────────────────────────────
 
@@ -890,7 +1071,7 @@ with col_main:
                             ">{tr("copy")}</button>
         </div>
 
-{linkar_docs(colorir_titulos(resposta), fontes)}
+{formatar_resposta_html(resposta, fontes)}
 
     </div>
 </div>
