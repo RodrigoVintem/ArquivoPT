@@ -168,7 +168,7 @@ section[data-testid="stSidebar"] .block-container {
 section[data-testid="stSidebar"] * { color: var(--texto) !important; }
 
 /* ── Botões de exemplo ─── */
-.stButton > button {
+.stButton > button:not([kind="primary"]):not([data-testid="baseButton-primary"]) {
     background: var(--bg3) !important;
     color: var(--subtexto) !important;
     border: 1px solid var(--borda) !important;
@@ -183,7 +183,7 @@ section[data-testid="stSidebar"] * { color: var(--texto) !important; }
     height: auto !important;
     line-height: 1.4 !important;
 }
-.stButton > button:hover {
+.stButton > button:not([kind="primary"]):not([data-testid="baseButton-primary"]):hover {
     background: var(--bg3) !important;
     border-color: var(--vermelho) !important;
     color: var(--texto) !important;
@@ -240,6 +240,10 @@ button[data-testid="baseButton-primary"] {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 1 !important;
     box-shadow: 0 0 16px rgba(255,45,85,0.35) !important;
     transition: all 0.15s !important;
 }
